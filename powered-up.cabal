@@ -1,0 +1,53 @@
+name:                powered-up
+version:             0.1.0.0
+synopsis:            LEGO Powered UP protocol
+-- description:
+license:             AGPL-3
+license-file:        LICENSE
+author:              Fraser Tweedale
+maintainer:          frase@frase.id.au
+copyright:           Copyright 2019  Fraser Tweedale
+category:            Network
+build-type:          Simple
+cabal-version:       >=1.10
+
+homepage:            https://github.com/frasertweedale/powered-up
+bug-reports:         https://github.com/frasertweedale/powered-up/issues
+source-repository head
+  type: git
+  location: https://github.com/frasertweedale/powered-up.git
+
+flag demos
+  description: Build demonstration programs
+  default: True
+
+library
+  exposed-modules:
+    PoweredUp
+    , PoweredUp.IO
+    , PoweredUp.Message
+    , PoweredUp.PortOutput
+    , PoweredUp.Version
+    , PoweredUp.Parser
+  -- other-modules:
+  -- other-extensions:
+  build-depends:
+    base >= 4.11 && < 5
+    , bytestring >= 0.10
+    , ble >= 0.4.2
+  hs-source-dirs:      lib
+  default-language:    Haskell2010
+  ghc-options: -Wall
+
+executable pu
+  main-is:             Main.hs
+  -- other-modules:
+  -- other-extensions:
+  build-depends:
+    base >= 4.11 && < 5
+    , bytestring
+    , ble
+    , powered-up
+  hs-source-dirs:      exe
+  default-language:    Haskell2010
+  ghc-options: -Wall
