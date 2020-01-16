@@ -16,6 +16,7 @@ module PoweredUp
   , HandlerId
   , registerHandler
   , deregisterHandler
+  , setFallbackHandler
 
   -- * Re-exports
   , module X
@@ -70,6 +71,11 @@ handle msg (i, Handler' f) = case parseMessage msg of
   Nothing -> pure False
   Just a -> f i a $> True
 
+defaultFallbackHandler :: B.ByteString -> IO ()
+defaultFallbackHandler msg = do
+    hPutStr stderr "Unhandled notification: "
+    hPrint stderr $ B.unpack msg
+
 -- | Run all handlers.  If no handlers could handle the
 -- notification, print the notification to stderr.
 --
@@ -77,9 +83,7 @@ runHandlers :: B.ByteString -> IO ()
 runHandlers msg = do
   (_, hs) <- readIORef handlers
   handled <- or <$> traverse (handle msg) hs
-  if handled then pure () else do
-    hPutStr stderr "Unhandled notification: "
-    hPrint stderr $ B.unpack msg
+  if handled then pure () else readIORef fallbackHandler >>= \h -> h msg
 
 -- | Start notifications.  Handlers can be (de)registered on the
 -- fly via 'registerHandler' and 'deregisterHandler'.
@@ -95,6 +99,14 @@ initialise char = startNotify char runHandlers
 handlers :: IORef (HandlerId, [(HandlerId, Handler')])
 handlers = unsafePerformIO $ newIORef (HandlerId 0, [])
 {-# NOINLINE handlers #-}
+
+-- | Map-like thing of handlers.
+-- We store the /next/ 'HandlerId' to be allocated.
+-- This value is incremented each time we add a handler.
+--
+fallbackHandler :: IORef (B.ByteString -> IO ())
+fallbackHandler = unsafePerformIO $ newIORef (defaultFallbackHandler)
+{-# NOINLINE fallbackHandler #-}
 
 -- | Register a handler and return the unique handler ID.
 --
@@ -122,3 +134,6 @@ deregisterHandler i = liftIO $ atomicModifyIORef handlers $ \(n, l) ->
     (match, nomatch) = partition ((== i) . fst) l
   in
     ((n, nomatch), not (null match))
+
+setFallbackHandler :: (MonadIO m) => (B.ByteString -> IO ()) -> m ()
+setFallbackHandler = liftIO . atomicWriteIORef fallbackHandler
