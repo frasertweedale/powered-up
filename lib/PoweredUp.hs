@@ -13,6 +13,7 @@ module PoweredUp
   -- * Notification handlers
   , initialise
   , Handler
+  , HandlerId
   , registerHandler
   , deregisterHandler
 
@@ -48,11 +49,13 @@ legoHubBootLoaderCharacteristic :: UUID
 legoHubBootLoaderCharacteristic = "00001626-1212-efde-1623-785feabcd123"
 
 
+newtype HandlerId = HandlerId Integer
+  deriving (Eq)
 
 -- | Handle a message.  The handler receives its own unique ID
 -- as an argument (e.g. so it could deregister itself).
 --
-type Handler a = Integer -> a -> IO ()
+type Handler a = HandlerId -> a -> IO ()
 
 data Handler' where
   Handler' :: (ParseMessage a) => Handler a -> Handler'
@@ -62,7 +65,7 @@ data Handler' where
 -- Returns True if the handler handled the message type,
 -- otherwise False.
 --
-handle :: B.ByteString -> (Integer, Handler') -> IO Bool
+handle :: B.ByteString -> (HandlerId, Handler') -> IO Bool
 handle msg (i, Handler' f) = case parseMessage msg of
   Nothing -> pure False
   Just a -> f i a $> True
@@ -86,11 +89,11 @@ initialise char = startNotify char runHandlers
 
 
 -- | Map-like thing of handlers.
--- The Integer is just a monotonically increasing
--- handler ID, incremented each time we add a handler.
+-- We store the /next/ 'HandlerId' to be allocated.
+-- This value is incremented each time we add a handler.
 --
-handlers :: IORef (Integer, [(Integer, Handler')])
-handlers = unsafePerformIO $ newIORef (0, [])
+handlers :: IORef (HandlerId, [(HandlerId, Handler')])
+handlers = unsafePerformIO $ newIORef (HandlerId 0, [])
 {-# NOINLINE handlers #-}
 
 -- | Register a handler and return the unique handler ID.
@@ -103,14 +106,14 @@ handlers = unsafePerformIO $ newIORef (0, [])
 --
 -- Use 'initialise' to actually start notifications.
 --
-registerHandler :: (ParseMessage a, MonadIO m) => Handler a -> m Integer
-registerHandler f = liftIO $ atomicModifyIORef handlers $ \(n, l) ->
-  ((n+1, (n, Handler' f):l), n)
+registerHandler :: (ParseMessage a, MonadIO m) => Handler a -> m HandlerId
+registerHandler f = liftIO $ atomicModifyIORef handlers $ \(HandlerId n, l) ->
+  ((HandlerId (n+1), (HandlerId n, Handler' f):l), HandlerId n)
 
 -- | Deregister the handler of the given ID.  Returns True if it was
 -- deregistered, or False if it wasn't registered to begin with.
 --
-deregisterHandler :: (MonadIO m) => Integer -> m Bool
+deregisterHandler :: (MonadIO m) => HandlerId -> m Bool
 deregisterHandler i = liftIO $ atomicModifyIORef handlers $ \(n, l) ->
   -- Possible optimisation: we know that the IDs are unique and
   -- decrease in size so we could stop as soon as we find an ID
