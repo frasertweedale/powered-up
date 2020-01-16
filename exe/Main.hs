@@ -34,14 +34,6 @@ go = do
     char = head $ service ^. characteristics
     write = writeChar char
 
-  -- Experiments show that a delay is required before the hub (or
-  -- attached devices) will respond to commands.  If we send
-  -- commands too soon it will not respond to *any* subsequent
-  -- commands.  3s is too short.  4s seems to be enough but we'll
-  -- play it safe and sleep for 5s to (hopefully) absorb variations
-  -- caused by different attached devices or firmware changes.
-  liftIO $ putStrLn "Waiting 5s..." *> threadDelay 5000000
-
   registerHandler (const (print :: AttachedIO -> IO ()))
   registerHandler (const (print :: DetachedIO -> IO ()))
 

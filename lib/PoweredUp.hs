@@ -25,6 +25,7 @@ module PoweredUp
   , module X
   ) where
 
+import Control.Concurrent (threadDelay)
 import Control.Monad.IO.Class (MonadIO(liftIO))
 import Data.Functor (($>))
 import Data.List (partition)
@@ -88,11 +89,21 @@ runHandlers msg = do
   handled <- or <$> traverse (handle msg) hs
   if handled then pure () else readIORef fallbackHandler >>= \h -> h msg
 
--- | Start notifications.  Handlers can be (de)registered on the
--- fly via 'registerHandler' and 'deregisterHandler'.
+-- | Wait for the hub to initialise itself, then start notifications.
+-- Handlers can be (de)registered on the fly via 'registerHandler'
+-- and 'deregisterHandler' (including before executing @initialise@).
+--
+-- Experiments show that a delay is required before the hub (or
+-- attached devices) will respond to commands.  If we send
+-- commands too soon it will not respond to *any* subsequent
+-- commands.  3s is too short.  4s seems to be enough but we'll
+-- play it safe and sleep for 5s to (hopefully) absorb variations
+-- caused by different attached devices or firmware changes.
 --
 initialise :: CharacteristicBS 'Remote -> BluetoothM ()
-initialise char = startNotify char runHandlers
+initialise char = do
+  liftIO $ putStr "Initializing... " *> threadDelay 5000000 *> putStrLn "done."
+  startNotify char runHandlers
 
 
 -- | Map-like thing of handlers.
