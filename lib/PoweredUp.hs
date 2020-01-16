@@ -18,6 +18,9 @@ module PoweredUp
   , deregisterHandler
   , setFallbackHandler
 
+  -- * Writing messages
+  , writeChar
+
   -- * Re-exports
   , module X
   ) where
@@ -137,3 +140,11 @@ deregisterHandler i = liftIO $ atomicModifyIORef handlers $ \(n, l) ->
 
 setFallbackHandler :: (MonadIO m) => (B.ByteString -> IO ()) -> m ()
 setFallbackHandler = liftIO . atomicWriteIORef fallbackHandler
+
+
+-- | Write a message to the characteristic.
+-- If the characteristic does not have a write method,
+-- this is a no-op.
+--
+writeChar :: (PrintMessage msg) => CharacteristicBS 'Remote -> msg -> BluetoothM ()
+writeChar char msg = maybe (pure ()) ($ printMessage msg) (char ^. writeValue)

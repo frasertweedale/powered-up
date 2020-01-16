@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE NoMonomorphismRestriction #-}
 
 module Main where
 
@@ -31,7 +32,7 @@ go = do
 
   let
     char = head $ service ^. characteristics
-    Just write = char ^. writeValue
+    write = writeChar char
 
   -- Experiments show that a delay is required before the hub (or
   -- attached devices) will respond to commands.  If we send
@@ -46,49 +47,48 @@ go = do
 
   initialise char
 
-  write $ printMessage $ PortInformationRequest portB 0x00
+  write $ PortInformationRequest portB 0x00
   liftIO $ threadDelay 100000
-  write $ printMessage $ PortInformationRequest portB 0x01
+  write $ PortInformationRequest portB 0x01
   liftIO $ threadDelay 100000
-  write $ printMessage $ PortInformationRequest portB 0x02
+  write $ PortInformationRequest portB 0x02
 
   {-
   replicateM_ 5 $ do
     liftIO $ putStrLn "whee..."
-    write $ printMessage $ PortOutput portA defaultStartupAndCompletion $
+    write $ PortOutput portA defaultStartupAndCompletion $
       StartSpeedForDegrees 180 (SpeedCW 1) 0xff EndStateHold 0x00
     liftIO $ threadDelay 0500000
 
-  write $ printMessage $ PortOutput portA defaultStartupAndCompletion $
+  write $ PortOutput portA defaultStartupAndCompletion $
     GotoAbsolutePosition 360 (SpeedCW 0.5) 0xff EndStateHold 0x00
   liftIO $ threadDelay 1000000
   -}
 
-  write $ printMessage $ PortOutput hubLED defaultStartupAndCompletion (SetColour Off)
+  write $ PortOutput hubLED defaultStartupAndCompletion (SetColour Off)
   liftIO $ threadDelay 100000
-  write $ printMessage $ PortOutput hubLED defaultStartupAndCompletion (SetColour Pink)
+  write $ PortOutput hubLED defaultStartupAndCompletion (SetColour Pink)
   liftIO $ threadDelay 100000
-  write $ printMessage $ PortOutput hubLED defaultStartupAndCompletion (SetColour Violet)
+  write $ PortOutput hubLED defaultStartupAndCompletion (SetColour Violet)
   liftIO $ threadDelay 100000
-  write $ printMessage $ PortOutput hubLED defaultStartupAndCompletion (SetColour Blue)
+  write $ PortOutput hubLED defaultStartupAndCompletion (SetColour Blue)
   liftIO $ threadDelay 100000
-  write $ printMessage $ PortOutput hubLED defaultStartupAndCompletion (SetColour LightBlue)
+  write $ PortOutput hubLED defaultStartupAndCompletion (SetColour LightBlue)
   liftIO $ threadDelay 100000
-  write $ printMessage $ PortOutput hubLED defaultStartupAndCompletion (SetColour LightGreen)
+  write $ PortOutput hubLED defaultStartupAndCompletion (SetColour LightGreen)
   liftIO $ threadDelay 100000
-  write $ printMessage $ PortOutput hubLED defaultStartupAndCompletion (SetColour Green)
+  write $ PortOutput hubLED defaultStartupAndCompletion (SetColour Green)
   liftIO $ threadDelay 100000
-  write $ printMessage $ PortOutput hubLED defaultStartupAndCompletion (SetColour Yellow)
+  write $ PortOutput hubLED defaultStartupAndCompletion (SetColour Yellow)
   liftIO $ threadDelay 100000
-  write $ printMessage $ PortOutput hubLED defaultStartupAndCompletion (SetColour Orange)
+  write $ PortOutput hubLED defaultStartupAndCompletion (SetColour Orange)
   liftIO $ threadDelay 100000
-  write $ printMessage $ PortOutput hubLED defaultStartupAndCompletion (SetColour Red)
+  write $ PortOutput hubLED defaultStartupAndCompletion (SetColour Red)
   liftIO $ threadDelay 100000
-  write $ printMessage $ PortOutput hubLED defaultStartupAndCompletion (SetColour White)
+  write $ PortOutput hubLED defaultStartupAndCompletion (SetColour White)
   liftIO $ threadDelay 100000
 
-  write $ printMessage $ PortOutput portA (ExecuteImmediately, NoAction) $
-    StartPower (PowerCW 1)
+  write $ PortOutput portA (ExecuteImmediately, NoAction) (StartPower (PowerCW 1))
 
   liftIO $ threadDelay (300 * 1000000)
 
