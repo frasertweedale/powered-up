@@ -59,8 +59,10 @@ newtype HandlerId = HandlerId Integer
 
 -- | Handle a message.  The handler receives its own unique ID
 -- as an argument (e.g. so it could deregister itself).
+-- It also receives the Characteristic on which the message was
+-- received.
 --
-type Handler a = HandlerId -> a -> IO ()
+type Handler a = CharacteristicBS 'Remote -> HandlerId -> a -> IO ()
 
 data Handler' where
   Handler' :: (ParseMessage a) => Handler a -> Handler'
@@ -70,10 +72,10 @@ data Handler' where
 -- Returns True if the handler handled the message type,
 -- otherwise False.
 --
-handle :: B.ByteString -> (HandlerId, Handler') -> IO Bool
-handle msg (i, Handler' f) = case parseMessage msg of
+handle :: CharacteristicBS 'Remote -> B.ByteString -> (HandlerId, Handler') -> IO Bool
+handle char msg (i, Handler' f) = case parseMessage msg of
   Nothing -> pure False
-  Just a -> f i a $> True
+  Just a -> f char i a $> True
 
 defaultFallbackHandler :: B.ByteString -> IO ()
 defaultFallbackHandler msg = do
@@ -83,10 +85,10 @@ defaultFallbackHandler msg = do
 -- | Run all handlers.  If no handlers could handle the
 -- notification, print the notification to stderr.
 --
-runHandlers :: B.ByteString -> IO ()
-runHandlers msg = do
+runHandlers :: CharacteristicBS 'Remote -> B.ByteString -> IO ()
+runHandlers char msg = do
   (_, hs) <- readIORef handlers
-  handled <- or <$> traverse (handle msg) hs
+  handled <- or <$> traverse (handle char msg) hs
   if handled then pure () else readIORef fallbackHandler >>= \h -> h msg
 
 -- | Wait for the hub to initialise itself, then start notifications.
@@ -103,7 +105,7 @@ runHandlers msg = do
 initialise :: CharacteristicBS 'Remote -> BluetoothM ()
 initialise char = do
   liftIO $ putStr "Initializing... " *> threadDelay 5000000 *> putStrLn "done."
-  startNotify char runHandlers
+  startNotify char (runHandlers char)
 
 
 -- | Map-like thing of handlers.
