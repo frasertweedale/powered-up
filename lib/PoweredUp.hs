@@ -40,6 +40,7 @@ import PoweredUp.Message as X
 import PoweredUp.PortOutput as X
 
 import Bluetooth hiding (Handler)
+import DBus (ObjectPath)
 
 legoHubService :: UUID
 legoHubService = "00001623-1212-efde-1623-785feabcd123"
@@ -72,8 +73,10 @@ data Handler' where
 -- Returns True if the handler handled the message type,
 -- otherwise False.
 --
-handle :: CharacteristicBS 'Remote -> B.ByteString -> (HandlerId, Handler') -> IO Bool
-handle char msg (i, Handler' f) = case parseMessage msg of
+handle :: CharacteristicBS 'Remote -> B.ByteString -> (HandlerId, Maybe ObjectPath, Handler') -> IO Bool
+handle char _ (_, Just objPath, _)
+  | objPath /= char ^. path = pure False  -- not from target characteristic
+handle char msg (i, _, Handler' f) = case parseMessage msg of
   Nothing -> pure False
   Just a -> f char i a $> True
 
@@ -112,7 +115,7 @@ initialise char = do
 -- We store the /next/ 'HandlerId' to be allocated.
 -- This value is incremented each time we add a handler.
 --
-handlers :: IORef (HandlerId, [(HandlerId, Handler')])
+handlers :: IORef (HandlerId, [(HandlerId, Maybe ObjectPath, Handler')])
 handlers = unsafePerformIO $ newIORef (HandlerId 0, [])
 {-# NOINLINE handlers #-}
 
@@ -134,9 +137,14 @@ fallbackHandler = unsafePerformIO $ newIORef (defaultFallbackHandler)
 --
 -- Use 'initialise' to actually start notifications.
 --
-registerHandler :: (ParseMessage a, MonadIO m) => Handler a -> m HandlerId
-registerHandler f = liftIO $ atomicModifyIORef handlers $ \(HandlerId n, l) ->
-  ((HandlerId (n+1), (HandlerId n, Handler' f):l), HandlerId n)
+registerHandler
+  :: (ParseMessage a, MonadIO m)
+  => Maybe (CharacteristicBS 'Remote)
+  -- ^ only deliver messages from the given characteristic
+  -> Handler a
+  -> m HandlerId
+registerHandler char f = liftIO $ atomicModifyIORef handlers $ \(HandlerId n, l) ->
+  ((HandlerId (n+1), (HandlerId n, (^. path) <$> char, Handler' f):l), HandlerId n)
 
 -- | Deregister the handler of the given ID.  Returns True if it was
 -- deregistered, or False if it wasn't registered to begin with.
@@ -147,7 +155,7 @@ deregisterHandler i = liftIO $ atomicModifyIORef handlers $ \(n, l) ->
   -- decrease in size so we could stop as soon as we find an ID
   -- <= the target.
   let
-    (match, nomatch) = partition ((== i) . fst) l
+    (match, nomatch) = partition ((== i) . (\(a,_,_) -> a)) l
   in
     ((n, nomatch), not (null match))
 

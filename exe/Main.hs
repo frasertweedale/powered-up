@@ -34,8 +34,8 @@ go = do
     char = head $ service ^. characteristics
     write = writeChar char
 
-  registerHandler (const $ const (print :: AttachedIO -> IO ()))
-  registerHandler (const $ const (print :: DetachedIO -> IO ()))
+  registerHandler Nothing (const $ const (print :: AttachedIO -> IO ()))
+  registerHandler Nothing (const $ const (print :: DetachedIO -> IO ()))
 
   initialise char
 
