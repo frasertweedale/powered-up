@@ -25,7 +25,6 @@ import System.IO (hFlush, stdout)
 import System.Exit (die)
 
 import Bluetooth
-import Control.Concurrent (threadDelay)
 
 import PoweredUp
 
@@ -56,9 +55,9 @@ go = do
   initialise char
 
   write $ PortInformationRequest portB 0x00
-  liftIO $ threadDelay 100000
+  delayMicroseconds 50000
   write $ PortInformationRequest portB 0x01
-  liftIO $ threadDelay 100000
+  delayMicroseconds 50000
   write $ PortInformationRequest portB 0x02
 
   {-
@@ -66,39 +65,39 @@ go = do
     liftIO $ putStrLn "whee..."
     write $ PortOutput portA defaultStartupAndCompletion $
       StartSpeedForDegrees 180 (SpeedCW 1) 0xff EndStateHold 0x00
-    liftIO $ threadDelay 0500000
+    delayMicroseconds 500000
 
   write $ PortOutput portA defaultStartupAndCompletion $
     GotoAbsolutePosition 360 (SpeedCW 0.5) 0xff EndStateHold 0x00
-  liftIO $ threadDelay 1000000
+  delaySeconds 1
   -}
 
   write $ PortOutput hubLED defaultStartupAndCompletion (SetColour Off)
-  liftIO $ threadDelay 100000
+  delayMicroseconds 50000
   write $ PortOutput hubLED defaultStartupAndCompletion (SetColour Pink)
-  liftIO $ threadDelay 100000
+  delayMicroseconds 50000
   write $ PortOutput hubLED defaultStartupAndCompletion (SetColour Violet)
-  liftIO $ threadDelay 100000
+  delayMicroseconds 50000
   write $ PortOutput hubLED defaultStartupAndCompletion (SetColour Blue)
-  liftIO $ threadDelay 100000
+  delayMicroseconds 50000
   write $ PortOutput hubLED defaultStartupAndCompletion (SetColour LightBlue)
-  liftIO $ threadDelay 100000
+  delayMicroseconds 50000
   write $ PortOutput hubLED defaultStartupAndCompletion (SetColour LightGreen)
-  liftIO $ threadDelay 100000
+  delayMicroseconds 50000
   write $ PortOutput hubLED defaultStartupAndCompletion (SetColour Green)
-  liftIO $ threadDelay 100000
+  delayMicroseconds 50000
   write $ PortOutput hubLED defaultStartupAndCompletion (SetColour Yellow)
-  liftIO $ threadDelay 100000
+  delayMicroseconds 50000
   write $ PortOutput hubLED defaultStartupAndCompletion (SetColour Orange)
-  liftIO $ threadDelay 100000
+  delayMicroseconds 50000
   write $ PortOutput hubLED defaultStartupAndCompletion (SetColour Red)
-  liftIO $ threadDelay 100000
+  delayMicroseconds 50000
   write $ PortOutput hubLED defaultStartupAndCompletion (SetColour White)
-  liftIO $ threadDelay 100000
+  delayMicroseconds 50000
 
   write $ PortOutput portA (ExecuteImmediately, NoAction) (StartPower (PowerCW 1))
 
-  liftIO $ threadDelay (300 * 1000000)
+  delaySeconds 5
 
   disconnectFrom dev
 

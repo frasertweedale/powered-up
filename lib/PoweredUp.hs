@@ -37,6 +37,10 @@ module PoweredUp
   -- * Writing messages
   , writeChar
 
+  -- * Utilities
+  , delaySeconds
+  , delayMicroseconds
+
   -- * Re-exports
   , module X
   ) where
@@ -185,3 +189,11 @@ setFallbackHandler = liftIO . atomicWriteIORef fallbackHandler
 --
 writeChar :: (PrintMessage msg) => CharacteristicBS 'Remote -> msg -> BluetoothM ()
 writeChar char msg = maybe (pure ()) ($ printMessage msg) (char ^. writeValue)
+
+-- | Sleep for specified number of microseconds.
+delayMicroseconds :: MonadIO m => Int -> m ()
+delayMicroseconds = liftIO . threadDelay
+
+-- | Sleep for specified number of seconds.
+delaySeconds :: MonadIO m => Int -> m ()
+delaySeconds = liftIO . threadDelay . (* 1000000)
