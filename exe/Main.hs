@@ -16,6 +16,7 @@
 
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE NoMonomorphismRestriction #-}
+{-# OPTIONS_GHC -Wno-unused-do-bind #-}
 
 module Main where
 
@@ -29,9 +30,7 @@ import Bluetooth
 import PoweredUp
 
 main :: IO ()
-main = do
-  conn <- connect
-  runBluetoothM go conn >>= print
+main = connect >>= runBluetoothM go >>= print
 
 dev :: Device
 dev = "90:84:2B:11:F5:EF" 
@@ -60,7 +59,6 @@ go = do
   delayMicroseconds 50000
   write $ PortInformationRequest portB 0x02
 
-  {-
   replicateM_ 5 $ do
     liftIO $ putStrLn "whee..."
     write $ PortOutput portA defaultStartupAndCompletion $
@@ -70,7 +68,6 @@ go = do
   write $ PortOutput portA defaultStartupAndCompletion $
     GotoAbsolutePosition 360 (SpeedCW 0.5) 0xff EndStateHold 0x00
   delaySeconds 1
-  -}
 
   write $ PortOutput hubLED defaultStartupAndCompletion (SetColour Off)
   delayMicroseconds 50000
