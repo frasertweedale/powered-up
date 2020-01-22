@@ -85,28 +85,76 @@ instance ParseMessage DetachedIO where
     <*  word8 0x00
 
 
-data PortInformationRequest = PortInformationRequest PortID Word8
+data PortInformationType = PortValue | ModeInfo | PossibleModeCombinations
+
+encodePortInformationType :: PortInformationType -> Word8
+encodePortInformationType x = case x of
+  PortValue -> 0x00
+  ModeInfo -> 0x01
+  PossibleModeCombinations -> 0x02
+
+data PortInformationRequest = PortInformationRequest PortID PortInformationType
 
 instance Message PortInformationRequest where
   messageType _ = 0x21
 
 instance PrintMessage PortInformationRequest where
   printMessageWithoutHeader (PortInformationRequest (PortID pid) infoType) =
-    B.pack [pid, infoType]
+    B.pack [pid, encodePortInformationType infoType]
+
+data ModeInformationType
+  = ModeName | ModeRawRange | ModePercentRange | ModeSIRange
+  | ModeSymbol | ModeMapping | ModeMotorBias | ModeCapabilityBits
+  | ModeValueFormat
+
+encodeModeInformationType :: ModeInformationType -> Word8
+encodeModeInformationType x = case x of
+  ModeName            -> 0x00
+  ModeRawRange        -> 0x01
+  ModePercentRange    -> 0x02
+  ModeSIRange         -> 0x03
+  ModeSymbol          -> 0x04
+  ModeMapping         -> 0x05
+  -- unused           -> 0x06
+  ModeMotorBias       -> 0x07
+  ModeCapabilityBits  -> 0x08
+  ModeValueFormat     -> 0x80
+
+data PortModeInformationRequest = PortModeInformationRequest PortID Word8 {- mode -} ModeInformationType
+
+instance Message PortModeInformationRequest where
+  messageType _ = 0x22
+
+instance PrintMessage PortModeInformationRequest where
+  printMessageWithoutHeader (PortModeInformationRequest (PortID pid) mode typ) =
+    B.pack [pid, mode, encodeModeInformationType typ]
 
 
-data Notification = NotificationDisabled | NotificationEnabled
+data EnableNotifications = EnableNotifications | DisableNotifications
 
--- Port, mode, interval/granularity, enable notifications
-data PortInputFormatSetup = PortInputFormatSetup PortID Word8 Word32 Notification
+-- | Set up port input mode.
+--
+-- The delta to trigger notification should probably not be set to zero
+-- (live data).
+--
+-- If notification is not enabled you can read the value via a
+-- 'PortInformationRequest' 'PortID' 'PortValue' message.
+--
+data PortInputFormatSetup
+  = PortInputFormatSetup PortID
+    Word8 {- mode -}
+    Word32 {- delta to trigger notification -}
+    EnableNotifications
 
 instance Message PortInputFormatSetup where
   messageType _ = 0x41
 
 instance PrintMessage PortInputFormatSetup where
   printMessageWithoutHeader (PortInputFormatSetup (PortID pid) mode delta notify) =
-    B.pack [pid, mode] -- .. TODO ]
-    where
+    B.pack
+      [ pid, mode, 0x01, 0x00, 0x00, 0x00
+      , case notify of EnableNotifications -> 1 ; _ -> 0
+      ]
 
 leWord32 :: Word32 -> Word8
 leWord32 = undefined -- TODO

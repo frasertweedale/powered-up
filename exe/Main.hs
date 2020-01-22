@@ -53,11 +53,14 @@ go = do
 
   initialise char
 
-  write $ PortInformationRequest portB 0x00
+  write $ PortInformationRequest portA PortValue
   delayMicroseconds 50000
-  write $ PortInformationRequest portB 0x01
+  write $ PortInformationRequest portA ModeInfo
   delayMicroseconds 50000
-  write $ PortInformationRequest portB 0x02
+  write $ PortInformationRequest portA PossibleModeCombinations
+  delayMicroseconds 50000
+
+  write $ PortInputFormatSetup portA 0x02 1 EnableNotifications
 
   replicateM_ 5 $ do
     liftIO $ putStrLn "whee..."
@@ -68,6 +71,9 @@ go = do
   write $ PortOutput portA defaultStartupAndCompletion $
     GotoAbsolutePosition 360 (SpeedCW 0.5) 0xff EndStateHold 0x00
   delaySeconds 1
+
+  write $ PortInformationRequest portA PortValue
+  delayMicroseconds 50000
 
   write $ PortOutput hubLED defaultStartupAndCompletion (SetColour Off)
   delayMicroseconds 50000
@@ -109,7 +115,7 @@ go = do
   delaySeconds 1
   steer 0
 
-  delaySeconds 5
+  delaySeconds 30
 
   disconnectFrom dev
 
