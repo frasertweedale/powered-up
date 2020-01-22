@@ -27,8 +27,8 @@ module PoweredUp.Function
 import PoweredUp
 
 import Control.Monad.IO.Class (MonadIO, liftIO)
-import Control.Concurrent (forkIO)
-import Control.Concurrent.STM (atomically, newEmptyTMVarIO, takeTMVar, tryTakeTMVar, putTMVar)
+import Control.Concurrent (forkIO, threadDelay)
+import Control.Concurrent.STM (STM, atomically, newEmptyTMVarIO, orElse, takeTMVar, tryTakeTMVar, putTMVar)
 import Control.Monad (forever)
 import Control.Monad.Reader (ask)
 
@@ -62,3 +62,12 @@ setupSteering char port = do
         GotoAbsolutePosition theta (SpeedCW 0.5) 0xff EndStateHold 0x00 )
       conn
   pure $ \theta -> liftIO $ atomically $ tryTakeTMVar box *> putTMVar box theta
+
+
+-- | Add a timeout (in microseconds) to an STM transaction.
+--
+atomicallyWithTimeout :: Int -> STM a -> IO (Maybe a)
+atomicallyWithTimeout d go = do
+  timedOut <- newEmptyTMVarIO
+  _ <- forkIO $ threadDelay d *> atomically (putTMVar timedOut ())
+  atomically $ (Just <$> go) `orElse` (Nothing <$ takeTMVar timedOut)
