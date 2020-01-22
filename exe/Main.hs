@@ -16,6 +16,7 @@
 
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE NoMonomorphismRestriction #-}
+{-# LANGUAGE RankNTypes #-}
 {-# OPTIONS_GHC -Wno-unused-do-bind #-}
 
 module Main where
@@ -25,9 +26,8 @@ import Control.Monad.IO.Class (liftIO)
 import System.IO (hFlush, stdout)
 import System.Exit (die)
 
-import Bluetooth
-
 import PoweredUp
+import PoweredUp.Function (setupSteering)
 
 main :: IO ()
 main = connect >>= runBluetoothM go >>= print
@@ -92,7 +92,22 @@ go = do
   write $ PortOutput hubLED defaultStartupAndCompletion (SetColour White)
   delayMicroseconds 50000
 
-  write $ PortOutput portA (ExecuteImmediately, NoAction) (StartPower (PowerCW 1))
+  steer <- setupSteering char portA
+  steer 0
+  delaySeconds 1
+  steer (-90)
+  delaySeconds 1
+  steer (-45)
+  delaySeconds 1
+  steer 0
+  delaySeconds 1
+  steer 45
+  delaySeconds 1
+  steer 90
+  delaySeconds 1
+  steer 45
+  delaySeconds 1
+  steer 0
 
   delaySeconds 5
 

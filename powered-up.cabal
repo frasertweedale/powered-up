@@ -24,6 +24,7 @@ flag demos
 library
   exposed-modules:
     PoweredUp
+    , PoweredUp.Function
     , PoweredUp.IO
     , PoweredUp.Message
     , PoweredUp.PortOutput
@@ -36,6 +37,8 @@ library
     , bytestring >= 0.10
     , ble >= 0.4.2
     , d-bus
+    , mtl
+    , stm
   hs-source-dirs:      lib
   default-language:    Haskell2010
   ghc-options: -Wall
@@ -46,8 +49,6 @@ executable pu
   -- other-extensions:
   build-depends:
     base >= 4.11 && < 5
-    , bytestring
-    , ble
     , powered-up
   hs-source-dirs:      exe
   default-language:    Haskell2010

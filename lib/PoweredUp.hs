@@ -28,6 +28,7 @@ module PoweredUp
 
   -- * Notification handlers
   , initialise
+  , RemoteCharacteristic
   , Handler
   , HandlerId
   , registerHandler
@@ -43,6 +44,7 @@ module PoweredUp
 
   -- * Re-exports
   , module X
+  , module Bluetooth
   ) where
 
 import Control.Concurrent (threadDelay)
@@ -74,6 +76,7 @@ legoHubBootLoaderService = "00001625-1212-efde-1623-785feabcd123"
 legoHubBootLoaderCharacteristic :: UUID
 legoHubBootLoaderCharacteristic = "00001626-1212-efde-1623-785feabcd123"
 
+type RemoteCharacteristic = CharacteristicBS 'Remote
 
 newtype HandlerId = HandlerId Integer
   deriving (Eq)
