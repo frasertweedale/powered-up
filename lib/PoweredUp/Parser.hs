@@ -25,8 +25,11 @@ module PoweredUp.Parser
   , word8
   , endOfInput
   , anyWord16
+  , takeByteString
+  , PoweredUp.Parser.takeWhile
   ) where
 
+import Control.Applicative
 import Data.Word (Word8, Word16)
 
 import qualified Data.ByteString as B
@@ -47,6 +50,10 @@ instance Applicative Parser where
     (s'', a) <- runParser p2 s'
     pure (s'', f a)
 
+instance Alternative Parser where
+  p1 <|> p2 = Parser $ \s -> runParser p1 s <|> runParser p2 s
+  empty = Parser $ const Nothing
+
 satisfy :: (Word8 -> Bool) -> Parser Word8
 satisfy test = Parser $ \s -> case B.uncons s of
   Just (c, s') | test c -> Just (s', c)
@@ -66,3 +73,11 @@ anyWord16 = do
   lo <- anyWord8
   hi <- anyWord8
   pure $ fromIntegral hi * 256 + fromIntegral lo
+
+-- | Take the rest of the input
+takeByteString :: Parser B.ByteString
+takeByteString = Parser $ \s -> Just (mempty, s)
+
+-- | Take until we hit a null byte (or end of string).
+takeWhile :: (Word8 -> Bool) -> Parser B.ByteString
+takeWhile p = Parser $ \s -> Just (B.dropWhile p s, B.takeWhile p s)

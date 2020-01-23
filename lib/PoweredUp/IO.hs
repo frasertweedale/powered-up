@@ -14,10 +14,14 @@
 -- You should have received a copy of the GNU Affero General Public License
 -- along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+{-# LANGUAGE ApplicativeDo #-}
+
 module PoweredUp.IO where
 
+import Control.Applicative
 import Data.Bits (finiteBitSize, testBit)
 import Data.Word (Word8, Word16, Word32)
+import GHC.Float (castWord32ToFloat)
 
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as L
@@ -109,6 +113,7 @@ data ModeInformationType
   = ModeName | ModeRawRange | ModePercentRange | ModeSIRange
   | ModeSymbol | ModeMapping | ModeMotorBias | ModeCapabilityBits
   | ModeValueFormat
+  deriving (Eq, Show)
 
 encodeModeInformationType :: ModeInformationType -> Word8
 encodeModeInformationType x = case x of
@@ -123,6 +128,18 @@ encodeModeInformationType x = case x of
   ModeCapabilityBits  -> 0x08
   ModeValueFormat     -> 0x80
 
+parseModeInformationType :: Parser ModeInformationType
+parseModeInformationType =
+  (ModeName               <$ word8 0x00)
+  <|> (ModeRawRange       <$ word8 0x01)
+  <|> (ModePercentRange   <$ word8 0x02)
+  <|> (ModeSIRange        <$ word8 0x03)
+  <|> (ModeSymbol         <$ word8 0x04)
+  <|> (ModeMapping        <$ word8 0x05)
+  <|> (ModeMotorBias      <$ word8 0x07)
+  <|> (ModeCapabilityBits <$ word8 0x08)
+  <|> (ModeValueFormat    <$ word8 0x80)
+
 data Mode
   = Mode0 | Mode1 | Mode2 | Mode3 | Mode4 | Mode5 | Mode6 | Mode7
   | Mode8 | Mode9 | Mode10 | Mode11 | Mode12 | Mode13 | Mode14 | Mode15
@@ -130,6 +147,9 @@ data Mode
 
 encodeMode :: Mode -> Word8
 encodeMode = fromIntegral . fromEnum
+
+parseMode :: Parser Mode
+parseMode = toEnum . fromIntegral <$> satisfy (< 16)
 
 data PortModeInformationRequest = PortModeInformationRequest PortID Mode ModeInformationType
 
@@ -197,3 +217,51 @@ instance ParseMessage PortInformationModeInfo where
         (\lo hi -> gen 0 (lo + hi * 256 :: Word16))
         <$> (fromIntegral <$> anyWord8)
         <*> (fromIntegral <$> anyWord8)
+
+
+data PortModeInformation = PortModeInformation PortID Mode ModeInformationType B.ByteString
+
+instance Show PortModeInformation where
+  show (PortModeInformation port mode typ s) =
+    "PortModeInformation (" <> show port <> ")"
+      <> " " <> show mode
+      <> " " <> show typ
+      <> " " <> showModeInformationValue typ s
+
+instance Message PortModeInformation where
+  messageType _ = 0x44
+
+instance ParseMessage PortModeInformation where
+  parseMessageBody = PortModeInformation
+    <$> (PortID <$> anyWord8)
+    <*> parseMode
+    <*> parseModeInformationType
+    <*> takeByteString
+
+-- | Take until we hit a null byte, then discard the rest of the input
+parseModeInformationString :: Parser B.ByteString
+parseModeInformationString = PoweredUp.Parser.takeWhile (/= 0) <* takeByteString
+
+parseFloat :: Parser Float
+parseFloat = do
+  lo <- fromIntegral <$> anyWord8
+  ml <- fromIntegral <$> anyWord8
+  mh <- fromIntegral <$> anyWord8
+  hi <- fromIntegral <$> anyWord8
+  pure $ castWord32ToFloat (((hi * 256 + mh) * 256 + ml) * 256 + lo)
+
+parseRange :: Parser (Float, Float)
+parseRange = (,) <$> parseFloat <*> parseFloat
+
+-- | Interpret mode information value for presentation
+showModeInformationValue :: ModeInformationType -> B.ByteString -> String
+showModeInformationValue typ s = case typ of
+  ModeName            -> maybe "failed to parse value" show (parseOnly parseModeInformationString s)
+  ModeRawRange        -> maybe "failed to parse value" show (parseOnly parseRange s)
+  ModePercentRange    -> maybe "failed to parse value" show (parseOnly parseRange s)
+  ModeSIRange         -> maybe "failed to parse value" show (parseOnly parseRange s)
+  ModeSymbol          -> maybe "failed to parse value" show (parseOnly parseModeInformationString s)
+  ModeMapping         -> show s
+  ModeMotorBias       -> show s
+  ModeCapabilityBits  -> show s
+  ModeValueFormat     -> show s

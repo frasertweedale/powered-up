@@ -50,6 +50,8 @@ go = do
 
   registerHandler Nothing (const $ const (print :: AttachedIO -> IO ()))
   registerHandler Nothing (const $ const (print :: DetachedIO -> IO ()))
+  registerHandler Nothing (const $ const (print :: PortInformationModeInfo -> IO ()))
+  registerHandler Nothing (const $ const (print :: PortModeInformation -> IO ()))
 
   initialise char
 
