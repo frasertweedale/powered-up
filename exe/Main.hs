@@ -60,7 +60,7 @@ go = do
   write $ PortInformationRequest portA PossibleModeCombinations
   delayMicroseconds 50000
 
-  write $ PortInputFormatSetup portA 0x02 1 EnableNotifications
+  write $ PortInputFormatSetup portA 0x02 (Delta 1) EnableNotifications
 
   replicateM_ 5 $ do
     liftIO $ putStrLn "whee..."

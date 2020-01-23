@@ -134,6 +134,10 @@ instance PrintMessage PortModeInformationRequest where
 
 data EnableNotifications = EnableNotifications | DisableNotifications
 
+
+newtype Delta = Delta Word32
+  deriving (Eq, Ord, Show)
+
 -- | Set up port input mode.
 --
 -- The delta to trigger notification should probably not be set to zero
@@ -145,14 +149,14 @@ data EnableNotifications = EnableNotifications | DisableNotifications
 data PortInputFormatSetup
   = PortInputFormatSetup PortID
     Word8 {- mode -}
-    Word32 {- delta to trigger notification -}
+    Delta
     EnableNotifications
 
 instance Message PortInputFormatSetup where
   messageType _ = 0x41
 
 instance PrintMessage PortInputFormatSetup where
-  printMessageWithoutHeader (PortInputFormatSetup (PortID pid) mode delta notify) =
+  printMessageWithoutHeader (PortInputFormatSetup (PortID pid) mode (Delta delta) notify) =
     L.toStrict . Builder.toLazyByteString $
       Builder.word8 pid
       <> Builder.word8 mode
