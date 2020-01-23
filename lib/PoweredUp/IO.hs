@@ -123,8 +123,13 @@ encodeModeInformationType x = case x of
   ModeCapabilityBits  -> 0x08
   ModeValueFormat     -> 0x80
 
-newtype Mode = Mode Word8
-  deriving (Eq, Show)
+data Mode
+  = Mode0 | Mode1 | Mode2 | Mode3 | Mode4 | Mode5 | Mode6 | Mode7
+  | Mode8 | Mode9 | Mode10 | Mode11 | Mode12 | Mode13 | Mode14 | Mode15
+  deriving (Eq, Enum, Show)
+
+encodeMode :: Mode -> Word8
+encodeMode = fromIntegral . fromEnum
 
 data PortModeInformationRequest = PortModeInformationRequest PortID Mode ModeInformationType
 
@@ -132,8 +137,8 @@ instance Message PortModeInformationRequest where
   messageType _ = 0x22
 
 instance PrintMessage PortModeInformationRequest where
-  printMessageWithoutHeader (PortModeInformationRequest (PortID pid) (Mode mode) typ) =
-    B.pack [pid, mode, encodeModeInformationType typ]
+  printMessageWithoutHeader (PortModeInformationRequest (PortID pid) mode typ) =
+    B.pack [pid, encodeMode mode, encodeModeInformationType typ]
 
 
 data EnableNotifications = EnableNotifications | DisableNotifications
@@ -157,10 +162,10 @@ instance Message PortInputFormatSetup where
   messageType _ = 0x41
 
 instance PrintMessage PortInputFormatSetup where
-  printMessageWithoutHeader (PortInputFormatSetup (PortID pid) (Mode mode) (Delta delta) notify) =
+  printMessageWithoutHeader (PortInputFormatSetup (PortID pid) mode (Delta delta) notify) =
     L.toStrict . Builder.toLazyByteString $
       Builder.word8 pid
-      <> Builder.word8 mode
+      <> Builder.word8 (encodeMode mode)
       <> Builder.word32LE delta
       <> Builder.word8 (case notify of EnableNotifications -> 1 ; _ -> 0)
 
@@ -186,7 +191,7 @@ instance ParseMessage PortInformationModeInfo where
     <*> parseModesBitmask
     where
       gen n vec | n >= finiteBitSize vec = []
-                | testBit vec n = Mode (fromIntegral n) : gen (n + 1) vec
+                | testBit vec n = toEnum n : gen (n + 1) vec
                 | otherwise = gen (n + 1) vec
       parseModesBitmask =
         (\lo hi -> gen 0 (lo + hi * 256 :: Word16))
