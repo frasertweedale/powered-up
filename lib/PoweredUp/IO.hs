@@ -122,13 +122,16 @@ encodeModeInformationType x = case x of
   ModeCapabilityBits  -> 0x08
   ModeValueFormat     -> 0x80
 
-data PortModeInformationRequest = PortModeInformationRequest PortID Word8 {- mode -} ModeInformationType
+newtype Mode = Mode Word8
+  deriving (Eq, Show)
+
+data PortModeInformationRequest = PortModeInformationRequest PortID Mode ModeInformationType
 
 instance Message PortModeInformationRequest where
   messageType _ = 0x22
 
 instance PrintMessage PortModeInformationRequest where
-  printMessageWithoutHeader (PortModeInformationRequest (PortID pid) mode typ) =
+  printMessageWithoutHeader (PortModeInformationRequest (PortID pid) (Mode mode) typ) =
     B.pack [pid, mode, encodeModeInformationType typ]
 
 
@@ -147,16 +150,13 @@ newtype Delta = Delta Word32
 -- 'PortInformationRequest' 'PortID' 'PortValue' message.
 --
 data PortInputFormatSetup
-  = PortInputFormatSetup PortID
-    Word8 {- mode -}
-    Delta
-    EnableNotifications
+  = PortInputFormatSetup PortID Mode Delta EnableNotifications
 
 instance Message PortInputFormatSetup where
   messageType _ = 0x41
 
 instance PrintMessage PortInputFormatSetup where
-  printMessageWithoutHeader (PortInputFormatSetup (PortID pid) mode (Delta delta) notify) =
+  printMessageWithoutHeader (PortInputFormatSetup (PortID pid) (Mode mode) (Delta delta) notify) =
     L.toStrict . Builder.toLazyByteString $
       Builder.word8 pid
       <> Builder.word8 mode
