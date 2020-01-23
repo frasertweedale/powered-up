@@ -16,6 +16,7 @@
 
 module PoweredUp.IO where
 
+import Data.Bits (finiteBitSize, testBit)
 import Data.Word (Word8, Word16, Word32)
 
 import qualified Data.ByteString as B
@@ -162,3 +163,32 @@ instance PrintMessage PortInputFormatSetup where
       <> Builder.word8 mode
       <> Builder.word32LE delta
       <> Builder.word8 (case notify of EnableNotifications -> 1 ; _ -> 0)
+
+
+data PortInformationModeInfo = PortInformationModeInfo
+    PortID
+    Word8 -- capabilities; really a 4-bit flag string
+    Word8 -- mode count
+    [Mode] -- input modes
+    [Mode] -- output modes
+  deriving (Show)
+
+instance Message PortInformationModeInfo where
+  messageType _ = 0x43
+
+instance ParseMessage PortInformationModeInfo where
+  parseMessageBody = PortInformationModeInfo
+    <$> (PortID <$> anyWord8)
+    <*  word8 0x01
+    <*> anyWord8
+    <*> anyWord8
+    <*> parseModesBitmask
+    <*> parseModesBitmask
+    where
+      gen n vec | n >= finiteBitSize vec = []
+                | testBit vec n = Mode (fromIntegral n) : gen (n + 1) vec
+                | otherwise = gen (n + 1) vec
+      parseModesBitmask =
+        (\lo hi -> gen 0 (lo + hi * 256 :: Word16))
+        <$> (fromIntegral <$> anyWord8)
+        <*> (fromIntegral <$> anyWord8)
