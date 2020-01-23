@@ -19,6 +19,8 @@ module PoweredUp.IO where
 import Data.Word (Word8, Word16, Word32)
 
 import qualified Data.ByteString as B
+import qualified Data.ByteString.Lazy as L
+import qualified Data.ByteString.Builder as Builder
 
 import PoweredUp.Message
 import PoweredUp.Version
@@ -151,10 +153,8 @@ instance Message PortInputFormatSetup where
 
 instance PrintMessage PortInputFormatSetup where
   printMessageWithoutHeader (PortInputFormatSetup (PortID pid) mode delta notify) =
-    B.pack
-      [ pid, mode, 0x01, 0x00, 0x00, 0x00
-      , case notify of EnableNotifications -> 1 ; _ -> 0
-      ]
-
-leWord32 :: Word32 -> Word8
-leWord32 = undefined -- TODO
+    L.toStrict . Builder.toLazyByteString $
+      Builder.word8 pid
+      <> Builder.word8 mode
+      <> Builder.word32LE delta
+      <> Builder.word8 (case notify of EnableNotifications -> 1 ; _ -> 0)
