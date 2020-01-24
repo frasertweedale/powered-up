@@ -22,6 +22,7 @@ Implementations of common applications and configurations.
 module PoweredUp.Function
   (
     setupSteering
+  , setupStepper
   , analysePort
   , onDegreesChange
   ) where
@@ -30,7 +31,7 @@ import PoweredUp
 
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Control.Concurrent (forkIO)
-import Control.Concurrent.STM (atomically, newEmptyTMVarIO, takeTMVar, tryTakeTMVar, putTMVar)
+import Control.Concurrent.STM
 import Control.Monad (forever, void, when)
 import Control.Monad.Reader (ask)
 import Data.Foldable (for_)
@@ -111,3 +112,40 @@ onDegreesChange char port delta go = do
   writeChar char $ PortInputFormatSetup port Mode2 delta EnableNotifications
   registerHandler (Just char) $ \_ _ (PortValue port' v) ->
     when (port' == port) (void $ runBluetoothM (go v) conn)
+
+
+-- | Set up a stepper motor.  Motor will hold at each step.
+-- No calibration is performed.
+--
+-- The returned actions step the motor forward and backward,
+-- respectively.
+--
+setupStepper
+  :: (MonadIO m)
+  => RemoteCharacteristic
+  -> PortID
+  -> Degrees -- ^ step magnitude
+  -> BluetoothM (m (), m ())  -- step forward and back
+setupStepper char port theta = do
+  conn <- ask
+  box <- liftIO $ newTVarIO 0
+  let
+    getNextPos curPos = do
+      pos <- readTVar box
+      if pos == curPos then retry else pure pos
+
+    go curPos = do
+      newPos <- atomically (getNextPos curPos)
+      _ <- runBluetoothM
+        ( writeChar char $ PortOutput port (ExecuteImmediately, NoAction) $
+          GotoAbsolutePosition newPos (SpeedCW 0.5) 0xff EndStateHold 0x00 )
+        conn
+      go newPos
+
+
+  _ <- liftIO $ forkIO $ go 0
+
+  pure
+    ( liftIO $ atomically $ modifyTVar box (+ theta)
+    , liftIO $ atomically $ modifyTVar box (subtract theta)
+    )

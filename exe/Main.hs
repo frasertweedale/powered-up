@@ -55,32 +55,26 @@ go = do
   let setDegreesB deg = writeChar char $ PortOutput portB (ExecuteImmediately, NoAction) $
         GotoAbsolutePosition deg (SpeedCW 0.2) 0xff EndStateFloat 0x00
 
-  onDegreesChange char portA (Delta 10) setDegreesB
+  (fwd, rev) <- setupStepper char portA 90
 
-  write $ PortOutput hubLED defaultStartupAndCompletion (SetColour Off)
-  delayMicroseconds 50000
-  write $ PortOutput hubLED defaultStartupAndCompletion (SetColour Pink)
-  delayMicroseconds 50000
-  write $ PortOutput hubLED defaultStartupAndCompletion (SetColour Violet)
-  delayMicroseconds 50000
-  write $ PortOutput hubLED defaultStartupAndCompletion (SetColour Blue)
-  delayMicroseconds 50000
-  write $ PortOutput hubLED defaultStartupAndCompletion (SetColour LightBlue)
-  delayMicroseconds 50000
-  write $ PortOutput hubLED defaultStartupAndCompletion (SetColour LightGreen)
-  delayMicroseconds 50000
   write $ PortOutput hubLED defaultStartupAndCompletion (SetColour Green)
-  delayMicroseconds 50000
-  write $ PortOutput hubLED defaultStartupAndCompletion (SetColour Yellow)
-  delayMicroseconds 50000
-  write $ PortOutput hubLED defaultStartupAndCompletion (SetColour Orange)
-  delayMicroseconds 50000
-  write $ PortOutput hubLED defaultStartupAndCompletion (SetColour Red)
-  delayMicroseconds 50000
-  write $ PortOutput hubLED defaultStartupAndCompletion (SetColour White)
-  delayMicroseconds 50000
 
-  delaySeconds 30
+  fwd
+  delaySeconds 1
+  fwd
+  delaySeconds 1
+  fwd
+  delaySeconds 1
+  fwd
+  delaySeconds 1
+  rev
+  delaySeconds 1
+  rev
+  delaySeconds 1
+  rev
+  delaySeconds 1
+  rev
+  delaySeconds 1
 
   disconnectFrom dev
 
