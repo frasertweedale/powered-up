@@ -49,12 +49,11 @@ module PoweredUp
   ) where
 
 import Control.Concurrent (forkIO, threadDelay)
-import Control.Concurrent.STM (STM, atomically, newEmptyTMVarIO, orElse, takeTMVar, putTMVar)
+import Control.Concurrent.STM
 import Control.Monad (when)
 import Control.Monad.IO.Class (MonadIO(liftIO))
 import Data.Functor (($>))
 import Data.List (partition)
-import Data.IORef
 import System.IO (hPutStr, hPrint, stderr)
 import System.IO.Unsafe (unsafePerformIO)
 
@@ -116,9 +115,9 @@ defaultFallbackHandler msg = do
 --
 runHandlers :: CharacteristicBS 'Remote -> B.ByteString -> IO ()
 runHandlers char msg = do
-  (_, hs) <- readIORef handlers
+  (_, hs) <- readTVarIO handlers
   handled <- or <$> traverse (handle char msg) hs
-  if handled then pure () else readIORef fallbackHandler >>= \h -> h msg
+  if handled then pure () else readTVarIO fallbackHandler >>= \h -> h msg
 
 -- | Wait for the hub to initialise itself, then start notifications.
 -- Handlers can be (de)registered on the fly via 'registerHandler'
@@ -141,16 +140,16 @@ initialise char = do
 -- We store the /next/ 'HandlerId' to be allocated.
 -- This value is incremented each time we add a handler.
 --
-handlers :: IORef (HandlerId, [(HandlerId, Maybe ObjectPath, Handler')])
-handlers = unsafePerformIO $ newIORef (HandlerId 0, [])
+handlers :: TVar (HandlerId, [(HandlerId, Maybe ObjectPath, Handler')])
+handlers = unsafePerformIO $ newTVarIO (HandlerId 0, [])
 {-# NOINLINE handlers #-}
 
 -- | Map-like thing of handlers.
 -- We store the /next/ 'HandlerId' to be allocated.
 -- This value is incremented each time we add a handler.
 --
-fallbackHandler :: IORef (B.ByteString -> IO ())
-fallbackHandler = unsafePerformIO $ newIORef (defaultFallbackHandler)
+fallbackHandler :: TVar (B.ByteString -> IO ())
+fallbackHandler = unsafePerformIO $ newTVarIO (defaultFallbackHandler)
 {-# NOINLINE fallbackHandler #-}
 
 -- | Register a handler and return the unique handler ID.
@@ -169,24 +168,26 @@ registerHandler
   -- ^ only deliver messages from the given characteristic
   -> Handler a
   -> m HandlerId
-registerHandler char f = liftIO $ atomicModifyIORef handlers $ \(HandlerId n, l) ->
-  ((HandlerId (n+1), (HandlerId n, (^. path) <$> char, Handler' f):l), HandlerId n)
+registerHandler char f = liftIO $ atomically $ do
+  (HandlerId n, l) <- readTVar handlers
+  writeTVar handlers (HandlerId (n+1), (HandlerId n, (^. path) <$> char, Handler' f):l)
+  pure $ HandlerId n
 
 -- | Deregister the handler of the given ID.  Returns True if it was
 -- deregistered, or False if it wasn't registered to begin with.
 --
 deregisterHandler :: (MonadIO m) => HandlerId -> m Bool
-deregisterHandler i = liftIO $ atomicModifyIORef handlers $ \(n, l) ->
+deregisterHandler i = liftIO . atomically $ do
   -- Possible optimisation: we know that the IDs are unique and
   -- decrease in size so we could stop as soon as we find an ID
   -- <= the target.
-  let
-    (match, nomatch) = partition ((== i) . (\(a,_,_) -> a)) l
-  in
-    ((n, nomatch), not (null match))
+  (n, l) <- readTVar handlers
+  let (match, nomatch) = partition ((== i) . (\(a,_,_) -> a)) l
+  writeTVar handlers (n, nomatch)
+  pure $ (not . null) match
 
 setFallbackHandler :: (MonadIO m) => (B.ByteString -> IO ()) -> m ()
-setFallbackHandler = liftIO . atomicWriteIORef fallbackHandler
+setFallbackHandler = liftIO . atomically . writeTVar fallbackHandler
 
 
 -- | Write a message to the characteristic.
