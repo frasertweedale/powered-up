@@ -81,7 +81,7 @@ analysePort char port = do
           mode = toEnum (fromIntegral n)
           modeInfoTypes =
             [ ModeName, ModeRawRange, ModePercentRange, ModeSIRange, ModeSymbol
-            , ModeMapping, ModeMotorBias, ModeCapabilityBits, ModeValueFormat
+            , ModeMapping, ModeMotorBias, {- ModeCapabilityBits, -} ModeValueFormat
             ]
         for_ modeInfoTypes $ \modeInfoType -> do
           rep' <- writeCharAwaitResponse timeout (test' mode modeInfoType) char $

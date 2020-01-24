@@ -111,7 +111,10 @@ instance PrintMessage PortInformationRequest where
 
 data ModeInformationType
   = ModeName | ModeRawRange | ModePercentRange | ModeSIRange
-  | ModeSymbol | ModeMapping | ModeMotorBias | ModeCapabilityBits
+  | ModeSymbol | ModeMapping | ModeMotorBias
+  -- | ModeCapabilityBits -- always results in parameter error; tested on
+                          -- 2-port system Hub with tacho motor and
+                          -- color/prox sensor
   | ModeValueFormat
   deriving (Eq, Show)
 
@@ -125,7 +128,7 @@ encodeModeInformationType x = case x of
   ModeMapping         -> 0x05
   -- unused           -> 0x06
   ModeMotorBias       -> 0x07
-  ModeCapabilityBits  -> 0x08
+  -- ModeCapabilityBits  -> 0x08
   ModeValueFormat     -> 0x80
 
 parseModeInformationType :: Parser ModeInformationType
@@ -137,7 +140,7 @@ parseModeInformationType =
   <|> (ModeSymbol         <$ word8 0x04)
   <|> (ModeMapping        <$ word8 0x05)
   <|> (ModeMotorBias      <$ word8 0x07)
-  <|> (ModeCapabilityBits <$ word8 0x08)
+  -- <|> (ModeCapabilityBits <$ word8 0x08)
   <|> (ModeValueFormat    <$ word8 0x80)
 
 data Mode
@@ -263,5 +266,5 @@ showModeInformationValue typ s = case typ of
   ModeSymbol          -> maybe "failed to parse value" show (parseOnly parseModeInformationString s)
   ModeMapping         -> show s
   ModeMotorBias       -> show s
-  ModeCapabilityBits  -> show s
+  -- ModeCapabilityBits  -> show s
   ModeValueFormat     -> show s
