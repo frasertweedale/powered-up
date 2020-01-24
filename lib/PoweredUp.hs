@@ -35,8 +35,9 @@ module PoweredUp
   , deregisterHandler
   , setFallbackHandler
 
-  -- * Writing messages
+  -- * Sending and receiving messages
   , writeChar
+  , writeCharAwaitResponse
 
   -- * Utilities
   , delaySeconds
@@ -47,7 +48,9 @@ module PoweredUp
   , module Bluetooth
   ) where
 
-import Control.Concurrent (threadDelay)
+import Control.Concurrent (forkIO, threadDelay)
+import Control.Concurrent.STM (STM, atomically, newEmptyTMVarIO, orElse, takeTMVar, putTMVar)
+import Control.Monad (when)
 import Control.Monad.IO.Class (MonadIO(liftIO))
 import Data.Functor (($>))
 import Data.List (partition)
@@ -192,6 +195,38 @@ setFallbackHandler = liftIO . atomicWriteIORef fallbackHandler
 --
 writeChar :: (PrintMessage msg) => CharacteristicBS 'Remote -> msg -> BluetoothM ()
 writeChar char msg = maybe (pure ()) ($ printMessage msg) (char ^. writeValue)
+
+-- | Add a timeout (in microseconds) to an STM transaction.
+--
+atomicallyWithTimeout :: (MonadIO m) => Int -> STM a -> m (Maybe a)
+atomicallyWithTimeout d go = liftIO $ do
+  timedOut <- newEmptyTMVarIO
+  _ <- forkIO $ threadDelay d *> atomically (putTMVar timedOut ())
+  atomically $ (Just <$> go) `orElse` (Nothing <$ takeTMVar timedOut)
+
+-- | Write a message to the characteristic and await a response.
+-- Caller supplies the test of whether a message matches the
+-- response.  Only notifications from the given characteristics are
+-- considered.
+--
+-- This function temporarily installs a handler and removes then
+-- handler after the response was received (or after timeout).
+--
+writeCharAwaitResponse
+  :: (PrintMessage req, ParseMessage rep)
+  => Int -- ^ timeout, in microseconds
+  -> (rep -> Bool)  -- ^ response test
+  -> RemoteCharacteristic
+  -> req
+  -> BluetoothM (Maybe rep) -- ^ response, or @Nothing@ if timed out
+writeCharAwaitResponse d test char req = do
+  box <- liftIO $ newEmptyTMVarIO
+  hid <- registerHandler (Just char) $ \_ _ rep ->
+    when (test rep) (atomically (putTMVar box rep))
+  writeChar char req
+  rep <- atomicallyWithTimeout d (takeTMVar box)
+  _ <- deregisterHandler hid
+  pure rep
 
 -- | Sleep for specified number of microseconds.
 delayMicroseconds :: MonadIO m => Int -> m ()

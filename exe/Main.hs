@@ -21,13 +21,12 @@
 
 module Main where
 
-import Control.Monad (replicateM_)
 import Control.Monad.IO.Class (liftIO)
 import System.IO (hFlush, stdout)
 import System.Exit (die)
 
 import PoweredUp
-import PoweredUp.Function (setupSteering)
+import PoweredUp.Function
 
 main :: IO ()
 main = connect >>= runBluetoothM go >>= print
@@ -50,8 +49,6 @@ go = do
 
   registerHandler Nothing (const $ const (print :: AttachedIO -> IO ()))
   registerHandler Nothing (const $ const (print :: DetachedIO -> IO ()))
-  registerHandler Nothing (const $ const (print :: PortInformationModeInfo -> IO ()))
-  registerHandler Nothing (const $ const (print :: PortModeInformation -> IO ()))
 
   initialise char
 
@@ -64,18 +61,15 @@ go = do
 
   -- write $ PortInputFormatSetup portA Mode2 (Delta 1) EnableNotifications
 
-  replicateM_ 5 $ do
-    liftIO $ putStrLn "whee..."
-    write $ PortOutput portA defaultStartupAndCompletion $
-      StartSpeedForDegrees 180 (SpeedCW 1) 0xff EndStateHold 0x00
-    delayMicroseconds 500000
-
   write $ PortOutput portA defaultStartupAndCompletion $
     GotoAbsolutePosition 360 (SpeedCW 0.5) 0xff EndStateHold 0x00
   delaySeconds 1
 
   write $ PortInformationRequest portA PortValue
   delayMicroseconds 50000
+
+  analysePort char portA
+  analysePort char portB
 
   write $ PortOutput hubLED defaultStartupAndCompletion (SetColour Off)
   delayMicroseconds 50000
@@ -99,25 +93,6 @@ go = do
   delayMicroseconds 50000
   write $ PortOutput hubLED defaultStartupAndCompletion (SetColour White)
   delayMicroseconds 50000
-
-  steer <- setupSteering char portA
-  steer 0
-  delaySeconds 1
-  steer (-90)
-  delaySeconds 1
-  steer (-45)
-  delaySeconds 1
-  steer 0
-  delaySeconds 1
-  steer 45
-  delaySeconds 1
-  steer 90
-  delaySeconds 1
-  steer 45
-  delaySeconds 1
-  steer 0
-
-  delaySeconds 30
 
   disconnectFrom dev
 
