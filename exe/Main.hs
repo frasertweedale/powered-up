@@ -52,24 +52,10 @@ go = do
 
   initialise char
 
-  write $ PortInformationRequest portA PortValue
-  delayMicroseconds 50000
-  write $ PortInformationRequest portA ModeInfo
-  delayMicroseconds 50000
-  write $ PortInformationRequest portA PossibleModeCombinations
-  delayMicroseconds 50000
+  let setDegreesB deg = writeChar char $ PortOutput portB (ExecuteImmediately, NoAction) $
+        GotoAbsolutePosition deg (SpeedCW 0.2) 0xff EndStateFloat 0x00
 
-  -- write $ PortInputFormatSetup portA Mode2 (Delta 1) EnableNotifications
-
-  write $ PortOutput portA defaultStartupAndCompletion $
-    GotoAbsolutePosition 360 (SpeedCW 0.5) 0xff EndStateHold 0x00
-  delaySeconds 1
-
-  write $ PortInformationRequest portA PortValue
-  delayMicroseconds 50000
-
-  analysePort char portA
-  analysePort char portB
+  onDegreesChange char portA (Delta 10) setDegreesB
 
   write $ PortOutput hubLED defaultStartupAndCompletion (SetColour Off)
   delayMicroseconds 50000
@@ -93,6 +79,8 @@ go = do
   delayMicroseconds 50000
   write $ PortOutput hubLED defaultStartupAndCompletion (SetColour White)
   delayMicroseconds 50000
+
+  delaySeconds 30
 
   disconnectFrom dev
 

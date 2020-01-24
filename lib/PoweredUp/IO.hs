@@ -20,6 +20,7 @@ module PoweredUp.IO where
 
 import Control.Applicative
 import Data.Bits (finiteBitSize, testBit)
+import Data.Int (Int32)
 import Data.Word (Word8, Word16, Word32)
 import GHC.Float (castWord32ToFloat)
 
@@ -92,11 +93,11 @@ instance ParseMessage DetachedIO where
     <*  word8 0x00
 
 
-data PortInformationType = PortValue | ModeInfo | PossibleModeCombinations
+data PortInformationType = Value | ModeInfo | PossibleModeCombinations
 
 encodePortInformationType :: PortInformationType -> Word8
 encodePortInformationType x = case x of
-  PortValue -> 0x00
+  Value -> 0x00
   ModeInfo -> 0x01
   PossibleModeCombinations -> 0x02
 
@@ -176,7 +177,7 @@ newtype Delta = Delta Word32
 -- (live data).
 --
 -- If notification is not enabled you can read the value via a
--- 'PortInformationRequest' 'PortID' 'PortValue' message.
+-- 'PortInformationRequest' 'PortID' 'Value' message.
 --
 data PortInputFormatSetup
   = PortInputFormatSetup PortID Mode Delta EnableNotifications
@@ -245,16 +246,8 @@ instance ParseMessage PortModeInformation where
 parseModeInformationString :: Parser B.ByteString
 parseModeInformationString = PoweredUp.Parser.takeWhile (/= 0) <* takeByteString
 
-parseFloat :: Parser Float
-parseFloat = do
-  lo <- fromIntegral <$> anyWord8
-  ml <- fromIntegral <$> anyWord8
-  mh <- fromIntegral <$> anyWord8
-  hi <- fromIntegral <$> anyWord8
-  pure $ castWord32ToFloat (((hi * 256 + mh) * 256 + ml) * 256 + lo)
-
 parseRange :: Parser (Float, Float)
-parseRange = (,) <$> parseFloat <*> parseFloat
+parseRange = (,) <$> parseValue <*> parseValue
 
 -- | Interpret mode information value for presentation
 showModeInformationValue :: ModeInformationType -> B.ByteString -> String
@@ -268,3 +261,33 @@ showModeInformationValue typ s = case typ of
   ModeMotorBias       -> show s
   -- ModeCapabilityBits  -> show s
   ModeValueFormat     -> show s
+
+
+class ParseValue a where
+  parseValue :: Parser a
+
+instance ParseValue Word32 where
+  parseValue = do
+    lo <- fromIntegral <$> anyWord8
+    ml <- fromIntegral <$> anyWord8
+    mh <- fromIntegral <$> anyWord8
+    hi <- fromIntegral <$> anyWord8
+    pure $ ((hi * 256 + mh) * 256 + ml) * 256 + lo
+
+instance ParseValue Float where
+  parseValue = castWord32ToFloat <$> parseValue
+
+instance ParseValue Int32 where
+  parseValue = (fromIntegral :: Word32 -> Int32) <$> parseValue
+
+
+data PortValue a = PortValue PortID a
+  deriving (Show)
+
+instance Message (PortValue a) where
+  messageType _ = 0x45
+
+instance ParseValue a => ParseMessage (PortValue a) where
+  parseMessageBody = PortValue
+    <$> (PortID <$> anyWord8)
+    <*> parseValue

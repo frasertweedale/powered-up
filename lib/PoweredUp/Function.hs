@@ -23,6 +23,7 @@ module PoweredUp.Function
   (
     setupSteering
   , analysePort
+  , onDegreesChange
   ) where
 
 import PoweredUp
@@ -30,7 +31,7 @@ import PoweredUp
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Control.Concurrent (forkIO)
 import Control.Concurrent.STM (atomically, newEmptyTMVarIO, takeTMVar, tryTakeTMVar, putTMVar)
-import Control.Monad (forever)
+import Control.Monad (forever, void, when)
 import Control.Monad.Reader (ask)
 import Data.Foldable (for_)
 
@@ -91,3 +92,22 @@ analysePort char port = do
     test (PortInformationModeInfo port' _ _ _ _) = port' == port
     test' mode modeInfoType (PortModeInformation port' mode' modeInfoType' _) =
       port' == port && mode' == mode && modeInfoType' == modeInfoType
+
+-- | Watch the given port for degrees change.  Returns the 'HandlerId'
+-- so the caller can deregister the handler later, if desired.
+--
+-- Does not check whether the port has a device connector or whether
+-- the connected device is a motor that supports reading degrees.  It
+-- will just register a value handle for Mode2.
+--
+-- The delta is the magnitude of the value change (in degrees) before
+-- a PortValue message will be sent.  Smaller values lead to more
+-- messages.  Experiment to see what works best for your application.
+--
+onDegreesChange
+  :: RemoteCharacteristic -> PortID -> Delta -> (Degrees -> BluetoothM ()) -> BluetoothM HandlerId
+onDegreesChange char port delta go = do
+  conn <- ask
+  writeChar char $ PortInputFormatSetup port Mode2 delta EnableNotifications
+  registerHandler (Just char) $ \_ _ (PortValue port' v) ->
+    when (port' == port) (void $ runBluetoothM (go v) conn)
