@@ -49,32 +49,15 @@ go = do
 
   registerHandler Nothing (const $ const (print :: AttachedIO -> IO ()))
   registerHandler Nothing (const $ const (print :: DetachedIO -> IO ()))
+  registerHandler Nothing (const $ const (print :: PortValue SensedColour -> IO ()))
 
   initialise char
 
-  let setDegreesB deg = writeChar char $ PortOutput portB (ExecuteImmediately, NoAction) $
-        GotoAbsolutePosition deg (SpeedCW 0.2) 0xff EndStateFloat 0x00
+  write $ PortInputFormatSetup portB Mode0 (Delta 1) EnableNotifications
 
-  (fwd, rev) <- setupStepper char portA 90
+  write $ PortOutput hubLED defaultStartupAndCompletion (SetColour (DefinedColour Green))
 
-  write $ PortOutput hubLED defaultStartupAndCompletion (SetColour Green)
-
-  fwd
-  delaySeconds 1
-  fwd
-  delaySeconds 1
-  fwd
-  delaySeconds 1
-  fwd
-  delaySeconds 1
-  rev
-  delaySeconds 1
-  rev
-  delaySeconds 1
-  rev
-  delaySeconds 1
-  rev
-  delaySeconds 1
+  delaySeconds 30
 
   disconnectFrom dev
 

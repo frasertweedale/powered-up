@@ -49,7 +49,7 @@ import qualified Data.ByteString.Builder as Builder
 import qualified Data.ByteString.Lazy as L
 
 import PoweredUp.Message
-import PoweredUp.IO (PortID(..))
+import PoweredUp.IO (PortID(..), Colour)
 
 
 -- | Whether to buffer the command or execute it immediately
@@ -196,27 +196,12 @@ instance Subcommand GotoAbsolutePosition where
       <> Builder.word8 prof
 
 
+-- | For setting the LED colour.  @Black@ means /off/.
 data RGBLEDColour
-  = Off
-  | Pink | Violet | Blue | LightBlue | LightGreen | Green | Yellow | Orange | Red | White
+  = DefinedColour Colour
   | RGB Word8 Word8 Word8
   deriving (Eq, Show)
 
--- | Precondition: constructor is not RGB
-encodeRGBLEDColour1 :: RGBLEDColour -> Word8
-encodeRGBLEDColour1 col = case col of
-  Off       -> 0x00
-  Pink      -> 0x01
-  Violet    -> 0x02
-  Blue      -> 0x03
-  LightBlue -> 0x04
-  LightGreen-> 0x05
-  Green     -> 0x06
-  Yellow    -> 0x07
-  Orange    -> 0x08
-  Red       -> 0x09
-  White     -> 0x0a
-  _         -> 0xff  -- bogus
 
 -- | Set the LED colour.  Note that 'RGB' mode does not seem to work
 -- (on the Smart Hub LED at least...)
@@ -224,5 +209,6 @@ encodeRGBLEDColour1 col = case col of
 data SetColour = SetColour RGBLEDColour
 
 instance Subcommand SetColour where
-  printSubcommand (SetColour (RGB r g b)) = B.pack [0x51, 0x01, r, g, b]
-  printSubcommand (SetColour col) = B.pack [0x51, 0x00, encodeRGBLEDColour1 col]
+  printSubcommand (SetColour x) = B.pack $ case x of
+    RGB r g b -> [0x51, 0x01, r, g, b]
+    DefinedColour col -> [0x51, 0x00, fromIntegral (fromEnum col)]

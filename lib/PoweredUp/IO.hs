@@ -263,8 +263,24 @@ showModeInformationValue typ s = case typ of
   ModeValueFormat     -> show s
 
 
+-- | Colour codes used for both input and output.
+data Colour
+  = Black | Pink | Violet | Blue | LightBlue | LightGreen | Green | Yellow
+  | Orange | Red | White
+  deriving (Show, Eq, Enum, Bounded)
+
+-- | Input from colour sensor.  The sensor sends @NoSensedColour@ 
+-- when there is no object in proximity.
+--
+data SensedColour = NoSensedColour | SensedColour Colour
+  deriving (Show, Eq)
+
+
 class ParseValue a where
   parseValue :: Parser a
+
+instance ParseValue Word8 where
+  parseValue = anyWord8
 
 instance ParseValue Word32 where
   parseValue = do
@@ -279,6 +295,22 @@ instance ParseValue Float where
 
 instance ParseValue Int32 where
   parseValue = (fromIntegral :: Word32 -> Int32) <$> parseValue
+
+type RawValue = B.ByteString
+
+instance ParseValue B.ByteString where
+  parseValue = takeByteString
+
+instance ParseValue Colour where
+  parseValue = toEnum . fromIntegral <$> satisfy (\x -> x >= lo && x <= hi)
+    where
+    lo = fromIntegral (fromEnum (minBound :: Colour))
+    hi = fromIntegral (fromEnum (maxBound :: Colour))
+
+instance ParseValue SensedColour where
+  parseValue =
+    (SensedColour <$> parseValue)
+    <|> (NoSensedColour <$ word8 255)
 
 
 data PortValue a = PortValue PortID a
