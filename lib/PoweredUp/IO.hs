@@ -269,8 +269,12 @@ data Colour
   | Orange | Red | White
   deriving (Show, Eq, Enum, Bounded)
 
--- | Input from colour sensor.  The sensor sends @NoSensedColour@ 
+-- | Input from colour sensor.  The sensor sends @NoSensedColour@
 -- when there is no object in proximity.
+--
+-- Sensor is good at detecting @Black@, @White@, @Blue@, @Red@,
+-- @Yellow@ and green which is detected as @LightGreen@.  /Actual/
+-- light green is unreliable and often mistaken for yellow.
 --
 data SensedColour = NoSensedColour | SensedColour Colour
   deriving (Show, Eq)
