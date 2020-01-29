@@ -25,6 +25,7 @@ module PoweredUp.Function
   , setupStepper
   , analysePort
   , onDegreesChange
+  , onColourChange
   ) where
 
 import PoweredUp
@@ -97,7 +98,7 @@ analysePort char port = do
 -- | Watch the given port for degrees change.  Returns the 'HandlerId'
 -- so the caller can deregister the handler later, if desired.
 --
--- Does not check whether the port has a device connector or whether
+-- Does not check whether the port has a device connected or whether
 -- the connected device is a motor that supports reading degrees.  It
 -- will just register a value handle for Mode2.
 --
@@ -149,3 +150,17 @@ setupStepper char port theta = do
     ( liftIO $ atomically $ modifyTVar box (+ theta)
     , liftIO $ atomically $ modifyTVar box (subtract theta)
     )
+
+-- | Watch the given port for colour change.  Returns the 'HandlerId'
+-- so the caller can deregister the handler later, if desired.
+--
+-- Does not check whether the port has a colour sensor connected.
+-- It will just set up @COLOR@ mode input and register a value handler.
+--
+onColourChange
+  :: RemoteCharacteristic -> PortID -> (SensedColour -> BluetoothM ()) -> BluetoothM HandlerId
+onColourChange char port go = do
+  conn <- ask
+  writeChar char $ PortInputFormatSetup port Mode0 (Delta 1) EnableNotifications
+  registerHandler (Just char) $ \_ _ (PortValue port' v) ->
+    when (port' == port) (void $ runBluetoothM (go v) conn)

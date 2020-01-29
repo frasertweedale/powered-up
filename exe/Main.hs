@@ -49,11 +49,15 @@ go = do
 
   registerHandler Nothing (const $ const (print :: AttachedIO -> IO ()))
   registerHandler Nothing (const $ const (print :: DetachedIO -> IO ()))
-  registerHandler Nothing (const $ const (print :: PortValue SensedColour -> IO ()))
 
   initialise char
 
-  write $ PortInputFormatSetup portB Mode0 (Delta 1) EnableNotifications
+  let
+    setLED sensed = writeChar char $ PortOutput hubLED defaultStartupAndCompletion
+      $ SetColour $ DefinedColour $ case sensed of
+        NoSensedColour -> Black
+        SensedColour col -> col
+  onColourChange char portB (\sensed -> liftIO (print sensed) *> setLED sensed)
 
   write $ PortOutput hubLED defaultStartupAndCompletion (SetColour (DefinedColour Green))
 
