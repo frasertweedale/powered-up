@@ -23,6 +23,7 @@ import Data.Bits (finiteBitSize, testBit)
 import Data.Int (Int32)
 import Data.Word (Word8, Word16, Word32)
 import GHC.Float (castWord32ToFloat)
+import Text.Printf
 
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as L
@@ -33,7 +34,13 @@ import PoweredUp.Version
 import PoweredUp.Parser
 
 newtype PortID = PortID Word8
-  deriving (Eq, Show)
+  deriving (Eq)
+
+instance Show PortID where
+  showsPrec d (PortID n) = showParen (d > app_prec) $
+    showString "PortID " . showString (printf "0x%.2X" n)
+    where app_prec = 10
+
 
 portA, portB, portC, portD, hubLED, hubCurrent, hubBattery :: PortID
 portA = PortID 0x00
