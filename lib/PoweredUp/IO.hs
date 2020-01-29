@@ -256,6 +256,27 @@ parseModeInformationString = PoweredUp.Parser.takeWhile (/= 0) <* takeByteString
 parseRange :: Parser (Float, Float)
 parseRange = (,) <$> parseValue <*> parseValue
 
+-- | Description of how to parse value datum
+data DatasetType = Dataset8Bit | Dataset16Bit | Dataset32Bit | DatasetFloat
+  deriving (Eq, Enum, Bounded, Show)
+
+-- | Description of how to parse and present value data
+data ValueFormat = ValueFormat
+  { numDatasets :: Word8 
+  , datasetType :: DatasetType
+  , totalFigures :: Word8
+  , decimalFigures :: Word8
+  }
+  deriving (Eq, Show)
+
+parseValueFormat :: Parser ValueFormat
+parseValueFormat = ValueFormat
+  <$> anyWord8
+  <*> parseBoundedEnum
+  <*> anyWord8
+  <*> anyWord8
+
+
 -- | Interpret mode information value for presentation
 showModeInformationValue :: ModeInformationType -> B.ByteString -> String
 showModeInformationValue typ s = case typ of
@@ -267,7 +288,7 @@ showModeInformationValue typ s = case typ of
   ModeMapping         -> show s
   ModeMotorBias       -> show s
   -- ModeCapabilityBits  -> show s
-  ModeValueFormat     -> show s
+  ModeValueFormat     -> maybe "failed to parse value" show (parseOnly parseValueFormat s)
 
 
 -- | Colour codes used for both input and output.
@@ -313,10 +334,7 @@ instance ParseValue B.ByteString where
   parseValue = takeByteString
 
 instance ParseValue Colour where
-  parseValue = toEnum . fromIntegral <$> satisfy (\x -> x >= lo && x <= hi)
-    where
-    lo = fromIntegral (fromEnum (minBound :: Colour))
-    hi = fromIntegral (fromEnum (maxBound :: Colour))
+  parseValue = parseBoundedEnum
 
 instance ParseValue SensedColour where
   parseValue =

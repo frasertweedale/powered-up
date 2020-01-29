@@ -15,6 +15,7 @@
 -- along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 {-# LANGUAGE ApplicativeDo #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module PoweredUp.Parser
   (
@@ -27,6 +28,7 @@ module PoweredUp.Parser
   , anyWord16
   , takeByteString
   , PoweredUp.Parser.takeWhile
+  , parseBoundedEnum
   ) where
 
 import Control.Applicative
@@ -81,3 +83,9 @@ takeByteString = Parser $ \s -> Just (mempty, s)
 -- | Take until we hit a null byte (or end of string).
 takeWhile :: (Word8 -> Bool) -> Parser B.ByteString
 takeWhile p = Parser $ \s -> Just (B.dropWhile p s, B.takeWhile p s)
+
+parseBoundedEnum :: forall a. (Enum a, Bounded a) => Parser a
+parseBoundedEnum = toEnum . fromIntegral <$> satisfy (\x -> x >= lo && x <= hi)
+    where
+    lo = fromIntegral (fromEnum (minBound :: a))
+    hi = fromIntegral (fromEnum (maxBound :: a))
