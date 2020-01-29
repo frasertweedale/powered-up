@@ -6,6 +6,13 @@ Protocol quirks / documentation errors
   every type of hardware I tried).
 
 
+Unused(?) protocol capabilities
+===============================
+
+Hub chaining:
+https://lego.github.io/lego-ble-wireless-protocol-docs/index.html#common-message-header
+
+
 Operational quirks
 ==================
 
@@ -20,3 +27,9 @@ Colour/distance sensor
 ----------------------
 
 See ``SensedColour`` haddock.
+
+
+Alternatives
+============
+
+https://github.com/imurvai/brickcontroller2
