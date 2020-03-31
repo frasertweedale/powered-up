@@ -20,8 +20,11 @@
 
 module PoweredUp
   (
-  -- * BLE UUIDs
-    legoHubService
+  -- * Hub discovery, connecting to hubs
+    getHubDevices
+
+  -- ** BLE UUIDs
+  , legoHubService
   , legoHubCharacteristic
   , legoHubBootLoaderService
   , legoHubBootLoaderCharacteristic
@@ -50,7 +53,7 @@ module PoweredUp
 
 import Control.Concurrent (forkIO, threadDelay)
 import Control.Concurrent.STM
-import Control.Monad (when)
+import Control.Monad (filterM, when)
 import Control.Monad.IO.Class (MonadIO(liftIO))
 import Data.Functor (($>))
 import Data.List (partition)
@@ -77,6 +80,11 @@ legoHubBootLoaderService = "00001625-1212-efde-1623-785feabcd123"
 
 legoHubBootLoaderCharacteristic :: UUID
 legoHubBootLoaderCharacteristic = "00001626-1212-efde-1623-785feabcd123"
+
+getHubDevices :: BluetoothM [Device]
+getHubDevices = do
+  devs <- getAllDevices
+  filterM (fmap (elem legoHubService) . getDeviceServiceUUIDs) devs
 
 type RemoteCharacteristic = CharacteristicBS 'Remote
 
