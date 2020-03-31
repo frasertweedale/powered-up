@@ -24,6 +24,7 @@ module PoweredUp.Function
     setupSteering
   , setupStepper
   , analysePort
+  , onValueChange
   , onDegreesChange
   , onColourChange
   ) where
@@ -108,9 +109,34 @@ analysePort char port = do
 --
 onDegreesChange
   :: RemoteCharacteristic -> PortID -> Delta -> (Degrees -> BluetoothM ()) -> BluetoothM HandlerId
-onDegreesChange char port delta go = do
+onDegreesChange char port = onValueChange char port Mode2
+
+-- | Watch the given port for value change on the given Mode.
+-- Returns the 'HandlerId' so the caller can deregister the handler
+-- later, if desired.
+--
+-- Does not check whether the port is connected or whether the port
+-- has the given mode, or whether the given mode is an input mode.
+-- It will just register a handler for that mode.
+--
+-- The delta is the magnitude of the value change (in degrees) before
+-- a PortValue message will be sent.  Smaller values lead to more
+-- messages.  Experiment to see what works best for your application.
+--
+-- The handler function receives a 'B.ByteString' because we don't
+-- know how many bytes the port values will have.
+--
+onValueChange
+  :: (ParseValue a)
+  => RemoteCharacteristic
+  -> PortID
+  -> Mode
+  -> Delta
+  -> (a -> BluetoothM ())
+  -> BluetoothM HandlerId
+onValueChange char port mode delta go = do
   conn <- ask
-  writeChar char $ PortInputFormatSetup port Mode2 delta EnableNotifications
+  writeChar char $ PortInputFormatSetup port mode delta EnableNotifications
   registerHandler (Just char) $ \_ _ (PortValue port' v) ->
     when (port' == port) (void $ runBluetoothM (go v) conn)
 
