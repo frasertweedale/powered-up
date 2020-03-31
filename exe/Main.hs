@@ -22,20 +22,19 @@
 module Main where
 
 import Control.Monad.IO.Class (liftIO)
-import System.IO (hFlush, stdout)
+import System.IO (hFlush, stdout, hSetBuffering, stdin, BufferMode(..))
 import System.Exit (die)
 
 import PoweredUp
-import PoweredUp.Function
-
-main :: IO ()
-main = connect >>= runBluetoothM go >>= print
 
 dev :: Device
 dev = "90:84:2B:11:F5:EF" 
 
-go :: BluetoothM ()
-go = do
+main :: IO ()
+main = connect >>= runBluetoothM run >>= print
+
+run :: BluetoothM ()
+run = do
   liftIO $ putStr "connecting to device... " *> hFlush stdout
   connectTo dev -- FIXME
   liftIO $ putStrLn "connected!"
@@ -52,17 +51,55 @@ go = do
 
   initialise char
 
+  {-
+  liftIO $ putStrLn "LED"
+  analysePort char hubLED
+  liftIO $ putStrLn "Current?"
+  analysePort char hubCurrent
+  liftIO $ putStrLn "Battery?"
+  analysePort char hubBattery
+
   let
     setLED sensed = writeChar char $ PortOutput hubLED defaultStartupAndCompletion
       $ SetColour $ DefinedColour $ case sensed of
         NoSensedColour -> Black
         SensedColour col -> col
   onColourChange char portB (\sensed -> liftIO (print sensed) *> setLED sensed)
+  -}
 
   write $ PortOutput hubLED defaultStartupAndCompletion (SetColour (DefinedColour Green))
 
-  delaySeconds 30
+  liftIO $ hSetBuffering stdin NoBuffering
+
+  liftIO $ putStrLn "ready!"
+  carLoop write
 
   disconnectFrom dev
 
   liftIO $ putStrLn "done"
+
+type MessageSink = forall msg. (PrintMessage msg) => msg -> BluetoothM ()
+
+carLoop :: MessageSink -> BluetoothM ()
+carLoop write = go Float
+  where
+  go power = do
+    s <- liftIO getChar
+    case s of
+      '>' -> let power' = inc power in cmd power' *> go power'
+      '<' -> let power' = dec power in cmd power' *> go power'
+      '.' -> let power' = Float in cmd power' *> go power'
+      'q' -> cmd Float -- no loop
+      _ -> go power
+  cmd power = write $ PortOutput portA (ExecuteImmediately, NoAction) (StartPower power)
+  bias = 0.1
+  inc (PowerCW n) | n >= 1 = PowerCW n
+                  | otherwise = PowerCW (n + 0.1)
+  inc (PowerCCW n) | n <= bias = Float
+                   | otherwise = PowerCCW (n - 0.1)
+  inc _ = PowerCW bias
+  dec (PowerCW n) | n <= bias = Float
+                  | otherwise = PowerCW (n - 0.1)
+  dec (PowerCCW n) | n >= 1 = PowerCCW n
+                   | otherwise = PowerCCW (n + 0.1)
+  dec _ = PowerCCW bias
