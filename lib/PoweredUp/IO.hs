@@ -42,7 +42,7 @@ instance Show PortID where
     where app_prec = 10
 
 
-portA, portB, portC, portD, hubLED, hubCurrent, hubBattery :: PortID
+portA, portB, portC, portD, hubLED, hubCurrent, hubBattery, hubTemp :: PortID
 portA = PortID 0x00
 portB = PortID 0x01
 portC = PortID 0x02
@@ -50,9 +50,16 @@ portD = PortID 0x03
 hubLED = PortID 0x32       -- type 0x17 (23) RGB Light
 hubCurrent = PortID 0x3b   -- type 0x15 (21) Current
 hubBattery = PortID 0x3c   -- type 0x14 (20) Voltage
+hubTemp = PortID 0x3d      -- type 0x3c      temperature?
+
 
 newtype IOTypeID = IOTypeID Word16
-  deriving (Eq, Show)
+  deriving (Eq)
+
+instance Show IOTypeID where
+  showsPrec d (IOTypeID n) = showParen (d > app_prec) $
+    showString "IOTypeID " . showString (printf "0x%.2X" n)
+    where app_prec = 10
 
 ioMotor, ioSystemTrainMotor, ioButton, ioLED, ioVoltage, ioCurrent, ioPiezo
   , ioRGB, ioExtTilt, ioMotionSensor, ioVisionSensor, ioExtMotorWithTacho
@@ -71,6 +78,29 @@ ioVisionSensor        = IOTypeID 0x25
 ioExtMotorWithTacho   = IOTypeID 0x26
 ioIntMotorWithTacho   = IOTypeID 0x27
 ioIntTilt             = IOTypeID 0x28
+
+-- | * Mode0 (input): TEMP / DEG
+ioTemp :: IOTypeID
+ioTemp                = IOTypeID 0x3C  -- Temperature?
+
+-- | * Mode0 (input): GRV / mG (accelerometer?)
+--   * Mode1 (input): CAL (calibration?)
+ioGrv :: IOTypeID
+ioGrv                 = IOTypeID 0x39
+
+-- | * Mode0 (input) ROT / DPS (tilt sensor, DPS = degrees per second?)
+ioRot1 :: IOTypeID
+ioRot1                = IOTypeID 0x3a
+
+-- | * Mode0 (input) POS / DEG (tilt sensor?)
+--   * Mode1 (input) IMP / CNT (impact counter?)
+--   * Mode2 (output) CFG (configuration?)
+ioPos :: IOTypeID
+ioPos                 = IOTypeID 0x3b
+
+-- | * Mode0 (input) GEST (range 0..4 ; no idea what this is)
+ioGest :: IOTypeID
+ioGest                = IOTypeID 0x36
 
 -- | The first version number is Hardware Revision, then Software Revision.
 data AttachedIO = AttachedIO PortID IOTypeID VersionNumber VersionNumber
