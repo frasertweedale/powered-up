@@ -20,7 +20,7 @@ module PoweredUp.IO where
 
 import Control.Applicative
 import Data.Bits (finiteBitSize, testBit)
-import Data.Int (Int32)
+import Data.Int (Int16, Int32)
 import Data.Word (Word8, Word16, Word32)
 import GHC.Float (castWord32ToFloat)
 import Text.Printf
@@ -344,6 +344,12 @@ class ParseValue a where
 instance ParseValue Word8 where
   parseValue = anyWord8
 
+instance ParseValue Word16 where
+  parseValue = do
+    lo <- fromIntegral <$> anyWord8
+    hi <- fromIntegral <$> anyWord8
+    pure $ hi * 256 + lo
+
 instance ParseValue Word32 where
   parseValue = do
     lo <- fromIntegral <$> anyWord8
@@ -354,6 +360,9 @@ instance ParseValue Word32 where
 
 instance ParseValue Float where
   parseValue = castWord32ToFloat <$> parseValue
+
+instance ParseValue Int16 where
+  parseValue = (fromIntegral :: Word16 -> Int16) <$> parseValue
 
 instance ParseValue Int32 where
   parseValue = (fromIntegral :: Word32 -> Int32) <$> parseValue
