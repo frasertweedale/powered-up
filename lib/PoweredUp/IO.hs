@@ -341,6 +341,12 @@ data SensedColour = NoSensedColour | SensedColour Colour
 class ParseValue a where
   parseValue :: Parser a
 
+instance (ParseValue a, ParseValue b) => ParseValue (a, b) where
+  parseValue = (,) <$> parseValue <*> parseValue
+
+instance (ParseValue a, ParseValue b, ParseValue c) => ParseValue (a, b, c) where
+  parseValue = (,,) <$> parseValue <*> parseValue <*> parseValue
+
 instance ParseValue Word8 where
   parseValue = anyWord8
 
