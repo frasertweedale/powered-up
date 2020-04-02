@@ -52,6 +52,12 @@ import Data.Traversable (for)
 --
 -- No calibration of the steering system is performed.
 --
+-- @
+-- do
+--   steer <- setupSteering characteristic portA
+--   steer 90 *> delaySeconds 1 *> steer (-90)
+-- @
+--
 setupSteering
   :: (MonadIO m)
   => RemoteCharacteristic
