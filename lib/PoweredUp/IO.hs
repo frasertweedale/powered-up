@@ -58,8 +58,12 @@ portD = PortID 0x03
 hubLED = PortID 0x32       -- type 0x17 (23) RGB Light
 hubCurrent = PortID 0x3b   -- type 0x15 (21) Current
 hubBattery = PortID 0x3c   -- type 0x14 (20) Voltage
-hubTemp = PortID 0x3d      -- type 0x3c      temperature?
-
+hubTemp = PortID 0x3d      -- type 0x3c      CPU temperature?
+hubIMUTemp = PortID 0x60   -- type 0x3c      IMU temperature?
+hubAccel = PortID 0x61     -- type 0x39      temperature?
+hubGyro = PortID 0x62      -- type 0x3a      temperature?
+hubTilt = PortID 0x63      -- type 0x3b      temperature?
+hubGesture = PortID 0x64   -- type 0x36      gesture sensor?
 
 newtype IOTypeID = IOTypeID Word16
   deriving (Eq)
@@ -97,22 +101,25 @@ ioTemp                = IOTypeID 0x3C  -- Temperature?
 
 -- | * Mode0 (input, 16-bit): GRV / mG (accelerometer?)
 --   * Mode1 (input): CAL (calibration?)
-ioGrv :: IOTypeID
-ioGrv                 = IOTypeID 0x39
+ioAccel :: IOTypeID
+ioAccel = IOTypeID 0x39
 
 -- | * Mode0 (input) ROT / DPS (tilt sensor, DPS = degrees per second?)
-ioRot1 :: IOTypeID
-ioRot1                = IOTypeID 0x3a
+ioGyro :: IOTypeID
+ioGyro = IOTypeID 0x3a
 
 -- | * Mode0 (input) POS / DEG (tilt sensor?)
 --   * Mode1 (input) IMP / CNT (impact counter?)
 --   * Mode2 (output) CFG (configuration?)
-ioPos :: IOTypeID
-ioPos                 = IOTypeID 0x3b
+ioTilt :: IOTypeID
+ioTilt = IOTypeID 0x3b
 
--- | * Mode0 (input) GEST (range 0..4 ; no idea what this is)
-ioGest :: IOTypeID
-ioGest                = IOTypeID 0x36
+-- | * Mode0 (input) GEST (range 0..4 ; gesture sensor)
+--
+-- I have no idea what the gesture codes mean!
+--
+ioGesture :: IOTypeID
+ioGesture = IOTypeID 0x36
 
 -- | The first version number is Hardware Revision, then Software Revision.
 data AttachedIO = AttachedIO PortID IOTypeID VersionNumber VersionNumber
