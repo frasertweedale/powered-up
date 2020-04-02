@@ -14,6 +14,11 @@
 -- You should have received a copy of the GNU Affero General Public License
 -- along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE FlexibleContexts #-}
+
 {- |
 
 Implementations of common applications and configurations.
@@ -31,12 +36,14 @@ module PoweredUp.Function
 
 import PoweredUp
 
+import Control.Applicative (liftA2)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Control.Concurrent (forkIO)
 import Control.Concurrent.STM
 import Control.Monad (forever, void, when)
 import Control.Monad.Reader (ask)
-import Data.Foldable (for_)
+import Data.Maybe (catMaybes)
+import Data.Traversable (for)
 
 -- | Set up steering on the given device and port.
 --
@@ -70,31 +77,42 @@ setupSteering char port = do
   pure $ \theta -> liftIO $ atomically $ tryTakeTMVar box *> putTMVar box theta
 
 
--- | Print information about I/O attached to a port
-analysePort :: RemoteCharacteristic -> PortID -> BluetoothM ()
+-- | Query information about I/O attached to a port
+analysePort
+  :: RemoteCharacteristic
+  -> PortID
+  -> BluetoothM (Either String (PortInformationModeInfo, [(Mode, ConsolidatedPortModeInformation)]))
 analysePort char port = do
-  let timeout = 500000
+  let
+    timeout = 500000
+    test (PortInformationModeInfo port' _ _ _ _) = port' == port
   rep <- writeCharAwaitResponse timeout test char $
     PortInformationRequest port ModeInfo
   case rep of
-    Nothing -> liftIO . putStrLn $ "Failed to get ModeInfo for " <> show port
+    Nothing -> pure . Left $ "Failed to get ModeInfo for " <> show port
     Just modeInfo@(PortInformationModeInfo _ _ nModes _ _) -> do
-      liftIO $ print modeInfo
-      for_ [0 .. nModes - 1] $ \n -> do
+      fmap (Right . ((,) modeInfo) . catMaybes) $ for [0 .. nModes - 1] $ \n -> do
         let
           mode = toEnum (fromIntegral n)
-          modeInfoTypes =
-            [ ModeName, ModeRawRange, ModePercentRange, ModeSIRange, ModeSymbol
-            , ModeMapping, ModeMotorBias, {- ModeCapabilityBits, -} ModeValueFormat
-            ]
-        for_ modeInfoTypes $ \modeInfoType -> do
-          rep' <- writeCharAwaitResponse timeout (test' mode modeInfoType) char $
-            PortModeInformationRequest port mode modeInfoType
-          liftIO $ traverse print rep'
-  where
-    test (PortInformationModeInfo port' _ _ _ _) = port' == port
-    test' mode modeInfoType (PortModeInformation port' mode' modeInfoType' _) =
-      port' == port && mode' == mode && modeInfoType' == modeInfoType
+          test' (PortModeInformation port' mode' _) = port' == port && mode' == mode
+          queryPortModeInfo
+            :: forall a. (IsModeInformationType a, ParseValue (ModeInformationTypePayloadType a))
+            => BluetoothM (Maybe (PortModeInformation a))
+          queryPortModeInfo =
+            writeCharAwaitResponse timeout test' char
+              (PortModeInformationRequest @a port mode)
+          con = pure (pure ConsolidatedPortModeInformation)
+          (<**>) = liftA2 (<*>)
+          f (PortModeInformation _portId _mode v) = v
+        (fmap . fmap) ((,) mode) $
+          con
+            <**> fmap (fmap f) (queryPortModeInfo @'ModeName)
+            <**> fmap (fmap f) (queryPortModeInfo @'ModeRawRange)
+            <**> fmap (fmap f) (queryPortModeInfo @'ModePercentRange)
+            <**> fmap (fmap f) (queryPortModeInfo @'ModeSIRange)
+            <**> fmap (fmap f) (queryPortModeInfo @'ModeSymbol)
+            <**> fmap (fmap f) (queryPortModeInfo @'ModeMapping)
+            <**> fmap (fmap f) (queryPortModeInfo @'ModeValueFormat)
 
 -- | Watch the given port for degrees change.  Returns the 'HandlerId'
 -- so the caller can deregister the handler later, if desired.

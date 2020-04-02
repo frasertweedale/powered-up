@@ -24,17 +24,27 @@ module Main where
 import Control.Monad.IO.Class (liftIO)
 import System.IO (hFlush, stdout, hSetBuffering, stdin, BufferMode(..))
 import System.Exit (die)
+import Data.Int (Int16)
+import Data.Traversable (for)
 
 import PoweredUp
+import PoweredUp.Function
 
-dev :: Device
-dev = "90:84:2B:11:F5:EF" 
+mySystemHub, myTechnicHub :: Device
+mySystemHub = "90:84:2B:11:F5:EF"
+myTechnicHub = "90:84:2B:4C:97:4E"
 
 main :: IO ()
 main = connect >>= runBluetoothM run >>= print
 
 run :: BluetoothM ()
 run = do
+
+  devs <- getHubDevices
+  traverse (liftIO . print) devs
+
+  let dev = myTechnicHub
+
   liftIO $ putStr "connecting to device... " *> hFlush stdout
   connectTo dev -- FIXME
   liftIO $ putStrLn "connected!"
@@ -51,6 +61,7 @@ run = do
 
   initialise char
 
+ 
   {-
   liftIO $ putStrLn "LED"
   analysePort char hubLED
@@ -59,20 +70,19 @@ run = do
   liftIO $ putStrLn "Battery?"
   analysePort char hubBattery
 
-  let
-    setLED sensed = writeChar char $ PortOutput hubLED defaultStartupAndCompletion
-      $ SetColour $ DefinedColour $ case sensed of
-        NoSensedColour -> Black
-        SensedColour col -> col
-  onColourChange char portB (\sensed -> liftIO (print sensed) *> setLED sensed)
   -}
+
+  for [0x3d, 0x60, 0x61, 0x62, 0x63, 0x64] $ \n -> do
+    liftIO $ putStrLn "\n\n\n?????"
+    liftIO . print =<< analysePort char (PortID n)
+
+  onValueChange char (PortID 0x61) Mode0 (Delta 1) (liftIO . (print :: (Int16, Int16, Int16) -> IO ()))
 
   write $ PortOutput hubLED defaultStartupAndCompletion (SetColour (DefinedColour Green))
 
-  liftIO $ hSetBuffering stdin NoBuffering
-
   liftIO $ putStrLn "ready!"
-  carLoop write
+
+  delaySeconds 10
 
   disconnectFrom dev
 
@@ -81,7 +91,7 @@ run = do
 type MessageSink = forall msg. (PrintMessage msg) => msg -> BluetoothM ()
 
 carLoop :: MessageSink -> BluetoothM ()
-carLoop write = go Float
+carLoop write = liftIO (hSetBuffering stdin NoBuffering) *> go Float
   where
   go power = do
     s <- liftIO getChar

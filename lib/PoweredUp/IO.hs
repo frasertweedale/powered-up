@@ -15,12 +15,20 @@
 -- along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 {-# LANGUAGE ApplicativeDo #-}
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE KindSignatures #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE UndecidableInstances #-}
 
 module PoweredUp.IO where
 
 import Control.Applicative
 import Data.Bits (finiteBitSize, testBit)
 import Data.Int (Int16, Int32)
+import Data.Proxy
 import Data.Word (Word8, Word16, Word32)
 import GHC.Float (castWord32ToFloat)
 import Text.Printf
@@ -79,11 +87,15 @@ ioExtMotorWithTacho   = IOTypeID 0x26
 ioIntMotorWithTacho   = IOTypeID 0x27
 ioIntTilt             = IOTypeID 0x28
 
--- | * Mode0 (input): TEMP / DEG
+-- | * Mode0 (input, Int16): TEMP / DEG
+--
+-- This seems to be a temperature sensor.  Raw range -900..900,
+-- SI range -90-90.  Divide the value by 10 to get degrees centigrade.
+--
 ioTemp :: IOTypeID
 ioTemp                = IOTypeID 0x3C  -- Temperature?
 
--- | * Mode0 (input): GRV / mG (accelerometer?)
+-- | * Mode0 (input, 16-bit): GRV / mG (accelerometer?)
 --   * Mode1 (input): CAL (calibration?)
 ioGrv :: IOTypeID
 ioGrv                 = IOTypeID 0x39
@@ -156,30 +168,50 @@ data ModeInformationType
   | ModeValueFormat
   deriving (Eq, Show)
 
-encodeModeInformationType :: ModeInformationType -> Word8
-encodeModeInformationType x = case x of
-  ModeName            -> 0x00
-  ModeRawRange        -> 0x01
-  ModePercentRange    -> 0x02
-  ModeSIRange         -> 0x03
-  ModeSymbol          -> 0x04
-  ModeMapping         -> 0x05
-  -- unused           -> 0x06
-  ModeMotorBias       -> 0x07
-  -- ModeCapabilityBits  -> 0x08
-  ModeValueFormat     -> 0x80
+class IsModeInformationType (a :: ModeInformationType) where
+  type ModeInformationTypePayloadType a
+  modeInformationType :: Proxy a -> ModeInformationType
+  modeInformationTypeCode :: Proxy a -> Word8
 
-parseModeInformationType :: Parser ModeInformationType
-parseModeInformationType =
-  (ModeName               <$ word8 0x00)
-  <|> (ModeRawRange       <$ word8 0x01)
-  <|> (ModePercentRange   <$ word8 0x02)
-  <|> (ModeSIRange        <$ word8 0x03)
-  <|> (ModeSymbol         <$ word8 0x04)
-  <|> (ModeMapping        <$ word8 0x05)
-  <|> (ModeMotorBias      <$ word8 0x07)
-  -- <|> (ModeCapabilityBits <$ word8 0x08)
-  <|> (ModeValueFormat    <$ word8 0x80)
+instance IsModeInformationType 'ModeName where
+  type ModeInformationTypePayloadType 'ModeName = StringValue
+  modeInformationType _ = ModeName
+  modeInformationTypeCode _ = 0x00
+
+instance IsModeInformationType 'ModeRawRange where
+  type ModeInformationTypePayloadType 'ModeRawRange = (Float, Float)
+  modeInformationType _ = ModeRawRange
+  modeInformationTypeCode _ = 0x01
+
+instance IsModeInformationType 'ModePercentRange where
+  type ModeInformationTypePayloadType 'ModePercentRange = (Float, Float)
+  modeInformationType _ = ModePercentRange
+  modeInformationTypeCode _ = 0x02
+
+instance IsModeInformationType 'ModeSIRange where
+  type ModeInformationTypePayloadType 'ModeSIRange = (Float, Float)
+  modeInformationType _ = ModeSIRange
+  modeInformationTypeCode _ = 0x03
+
+instance IsModeInformationType 'ModeSymbol where
+  type ModeInformationTypePayloadType 'ModeSymbol = StringValue
+  modeInformationType _ = ModeSymbol
+  modeInformationTypeCode _ = 0x04
+
+instance IsModeInformationType 'ModeMapping where
+  type ModeInformationTypePayloadType 'ModeMapping = B.ByteString  -- TODO
+  modeInformationType _ = ModeMapping
+  modeInformationTypeCode _ = 0x05
+
+instance IsModeInformationType 'ModeMotorBias where
+  type ModeInformationTypePayloadType 'ModeMotorBias = B.ByteString -- TODO
+  modeInformationType _ = ModeMotorBias
+  modeInformationTypeCode _ = 0x07
+
+instance IsModeInformationType 'ModeValueFormat where
+  type ModeInformationTypePayloadType 'ModeValueFormat = ValueFormat
+  modeInformationType _ = ModeValueFormat
+  modeInformationTypeCode _ = 0x80
 
 data Mode
   = Mode0 | Mode1 | Mode2 | Mode3 | Mode4 | Mode5 | Mode6 | Mode7
@@ -192,14 +224,15 @@ encodeMode = fromIntegral . fromEnum
 parseMode :: Parser Mode
 parseMode = toEnum . fromIntegral <$> satisfy (< 16)
 
-data PortModeInformationRequest = PortModeInformationRequest PortID Mode ModeInformationType
+data PortModeInformationRequest (a :: ModeInformationType)
+  = PortModeInformationRequest PortID Mode
 
-instance Message PortModeInformationRequest where
+instance Message (PortModeInformationRequest a) where
   messageType _ = 0x22
 
-instance PrintMessage PortModeInformationRequest where
-  printMessageWithoutHeader (PortModeInformationRequest (PortID pid) mode typ) =
-    B.pack [pid, encodeMode mode, encodeModeInformationType typ]
+instance (IsModeInformationType a) => PrintMessage (PortModeInformationRequest a) where
+  printMessageWithoutHeader (PortModeInformationRequest (PortID pid) mode) =
+    B.pack [pid, encodeMode mode, modeInformationTypeCode (Proxy @a)]
 
 
 data EnableNotifications = EnableNotifications | DisableNotifications
@@ -260,28 +293,41 @@ instance ParseMessage PortInformationModeInfo where
         <*> (fromIntegral <$> anyWord8)
 
 
-data PortModeInformation = PortModeInformation PortID Mode ModeInformationType B.ByteString
+data PortModeInformation (a :: ModeInformationType) =
+  PortModeInformation PortID Mode (ModeInformationTypePayloadType a)
 
-instance Show PortModeInformation where
-  show (PortModeInformation port mode typ s) =
-    "PortModeInformation (" <> show port <> ")"
+instance
+    (IsModeInformationType a, Show (ModeInformationTypePayloadType a))
+    => Show (PortModeInformation a) where
+  show (PortModeInformation port mode v) =
+    "PortModeInformation (" <> show port <> ") "
+      <> show (modeInformationType (Proxy @a))
       <> " " <> show mode
-      <> " " <> show typ
-      <> " " <> showModeInformationValue typ s
+      <> " " <> show v
 
-instance Message PortModeInformation where
+-- | Port mode information fields consolidated into a single value
+data ConsolidatedPortModeInformation = ConsolidatedPortModeInformation
+  { portModeName :: StringValue
+  , portModeRawRange :: (Float, Float)
+  , portModePercentRange :: (Float, Float)
+  , portModeSIRange :: (Float, Float)
+  , portModeSymbol :: StringValue
+  , portModeMapping :: B.ByteString
+  , portModeValueFormat :: ValueFormat
+  }
+  deriving (Eq, Show)
+
+instance Message (PortModeInformation a) where
   messageType _ = 0x44
 
-instance ParseMessage PortModeInformation where
+instance
+    (IsModeInformationType a, ParseValue (ModeInformationTypePayloadType a))
+    => ParseMessage (PortModeInformation a) where
   parseMessageBody = PortModeInformation
     <$> (PortID <$> anyWord8)
     <*> parseMode
-    <*> parseModeInformationType
-    <*> takeByteString
-
--- | Take until we hit a null byte, then discard the rest of the input
-parseModeInformationString :: Parser B.ByteString
-parseModeInformationString = PoweredUp.Parser.takeWhile (/= 0) <* takeByteString
+    <*  word8 (modeInformationTypeCode (Proxy @a))
+    <*> parseValue
 
 parseRange :: Parser (Float, Float)
 parseRange = (,) <$> parseValue <*> parseValue
@@ -299,27 +345,6 @@ data ValueFormat = ValueFormat
   }
   deriving (Eq, Show)
 
-parseValueFormat :: Parser ValueFormat
-parseValueFormat = ValueFormat
-  <$> anyWord8
-  <*> parseBoundedEnum
-  <*> anyWord8
-  <*> anyWord8
-
-
--- | Interpret mode information value for presentation
-showModeInformationValue :: ModeInformationType -> B.ByteString -> String
-showModeInformationValue typ s = case typ of
-  ModeName            -> maybe "failed to parse value" show (parseOnly parseModeInformationString s)
-  ModeRawRange        -> maybe "failed to parse value" show (parseOnly parseRange s)
-  ModePercentRange    -> maybe "failed to parse value" show (parseOnly parseRange s)
-  ModeSIRange         -> maybe "failed to parse value" show (parseOnly parseRange s)
-  ModeSymbol          -> maybe "failed to parse value" show (parseOnly parseModeInformationString s)
-  ModeMapping         -> show s
-  ModeMotorBias       -> show s
-  -- ModeCapabilityBits  -> show s
-  ModeValueFormat     -> maybe "failed to parse value" show (parseOnly parseValueFormat s)
-
 
 -- | Colour codes used for both input and output.
 data Colour
@@ -336,6 +361,9 @@ data Colour
 --
 data SensedColour = NoSensedColour | SensedColour Colour
   deriving (Show, Eq)
+
+newtype StringValue = StringValue B.ByteString
+  deriving (Eq, Show)
 
 
 class ParseValue a where
@@ -385,6 +413,20 @@ instance ParseValue SensedColour where
   parseValue =
     (SensedColour <$> parseValue)
     <|> (NoSensedColour <$ word8 255)
+
+-- | Take until we hit a null byte, then discard the rest of the input.
+-- Therefore this parser should only be used to parse the final datum in
+-- a string.
+--
+instance ParseValue StringValue where
+  parseValue = StringValue <$> PoweredUp.Parser.takeWhile (/= 0) <* takeByteString
+
+instance ParseValue ValueFormat where
+  parseValue = ValueFormat
+    <$> anyWord8
+    <*> parseBoundedEnum
+    <*> anyWord8
+    <*> anyWord8
 
 
 data PortValue a = PortValue PortID a
