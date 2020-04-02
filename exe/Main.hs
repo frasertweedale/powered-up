@@ -61,28 +61,25 @@ run = do
 
   initialise char
 
- 
   {-
-  liftIO $ putStrLn "LED"
-  analysePort char hubLED
-  liftIO $ putStrLn "Current?"
-  analysePort char hubCurrent
-  liftIO $ putStrLn "Battery?"
-  analysePort char hubBattery
-
+  for [ hubLED, hubCurrent, hubBattery, PortID 0x3d,
+        PortID 0x60, PortID 0x61, PortID 0x62, PortID 0x63, PortID 0x64
+      ] $ \port -> do
+    liftIO $ putStrLn "\n\n"
+    liftIO . print =<< analysePort char port
   -}
 
-  for [0x3d, 0x60, 0x61, 0x62, 0x63, 0x64] $ \n -> do
-    liftIO $ putStrLn "\n\n\n?????"
-    liftIO . print =<< analysePort char (PortID n)
+  --onValueChange char (PortID 0x61) Mode0 (Delta 1) (liftIO . (print :: (Int16, Int16, Int16) -> IO ()))
+  --onValueChange char (PortID 0x63) Mode0 (Delta 1) (liftIO . (print :: (Int16, Int16, Int16) -> IO ()))
 
-  onValueChange char (PortID 0x61) Mode0 (Delta 1) (liftIO . (print :: (Int16, Int16, Int16) -> IO ()))
+  steer <- setupSteering char portA
+  onRoll char (Delta 10) steer
 
   write $ PortOutput hubLED defaultStartupAndCompletion (SetColour (DefinedColour Green))
 
   liftIO $ putStrLn "ready!"
 
-  delaySeconds 10
+  delaySeconds 60
 
   disconnectFrom dev
 

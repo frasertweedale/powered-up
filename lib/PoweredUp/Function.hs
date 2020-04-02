@@ -32,6 +32,12 @@ module PoweredUp.Function
   , onValueChange
   , onDegreesChange
   , onColourChange
+
+  -- Technic Hub tilt / direction sensor
+  , onRoll
+  , onPitch
+  , onYaw
+  , onTilt
   ) where
 
 import PoweredUp
@@ -42,6 +48,7 @@ import Control.Concurrent (forkIO)
 import Control.Concurrent.STM
 import Control.Monad (forever, void, when)
 import Control.Monad.Reader (ask)
+import Data.Int (Int16)
 import Data.Maybe (catMaybes)
 import Data.Traversable (for)
 
@@ -134,6 +141,69 @@ analysePort char port = do
 onDegreesChange
   :: RemoteCharacteristic -> PortID -> Delta -> (Degrees -> BluetoothM ()) -> BluetoothM HandlerId
 onDegreesChange char port = onValueChange char port Mode2
+
+onRoll, onPitch, onYaw
+  :: RemoteCharacteristic
+  -> Delta
+  -> (Degrees -> BluetoothM ())
+  -> BluetoothM HandlerId
+
+-- | Monitor for roll changes (+ve is left, -ve is right).
+-- It is assumed the the characteristic is a Technic hub.
+--
+-- See 'onTilt' for other caveats.
+onRoll = onTilt (\(_,_,v) -> fromIntegral v)
+
+-- | Monitor for pitch changes (+ve is up, -ve is down).
+-- It is assumed the the characteristic is a Technic hub.
+--
+-- See 'onTilt' for other caveats.
+onPitch = onTilt (\(_,v,_) -> fromIntegral v)
+
+-- | Monitor for yaw changes.  +ve is left (from initial heading),
+-- -ve is right.
+-- It is assumed the the characteristic is a Technic hub.
+--
+-- The magnetometer seems quite inaccurate; bias is easily
+-- introduced.  Maybe there's a way to calibrate it.
+--
+-- See 'onTilt' for other caveats.
+onYaw = onTilt (\(v,_,_) -> fromIntegral v)
+
+-- | Set up general tilt event handlers.
+--
+-- The tilt vector fields are @(yaw, pitch, roll)@.
+-- Each value has range -180 to 179, with wrapping.
+--
+-- An update is triggered when the delta of any of the
+-- fields to the last reported value reaches the given
+-- 'Delta'.  Therefore a field value in an update is not
+-- necesssarily a multiple of the given @Delta@.
+--
+-- As a consequence, even if you are only interested in
+-- one component, updates may come "faster than expected"
+-- if the rate of change of one of the other components
+-- is greater.
+--
+onTilt
+  :: (Eq a)
+  => ((Int16, Int16, Int16) -> a)
+  -> RemoteCharacteristic
+  -> Delta
+  -> (a -> BluetoothM ())
+  -> BluetoothM HandlerId
+onTilt get char delta f = do
+  -- keep track of prev value to filter out events where
+  -- value of interest did not change
+  box <- liftIO $ newTVarIO Nothing
+  let
+    go vec = do
+      let cur = get vec
+      prev <- liftIO $ readTVarIO box
+      when (prev /= Just cur) $ do
+        liftIO . atomically $ writeTVar box (Just cur)
+        f cur
+  onValueChange char hubTilt Mode0 delta go
 
 -- | Watch the given port for value change on the given Mode.
 -- Returns the 'HandlerId' so the caller can deregister the handler
