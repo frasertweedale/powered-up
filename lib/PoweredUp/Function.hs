@@ -32,6 +32,7 @@ module PoweredUp.Function
   , onValueChange
   , onDegreesChange
   , onColourChange
+  , onBatteryLevel
 
   -- Technic Hub tilt / direction sensor
   , onRoll
@@ -50,6 +51,7 @@ import Control.Monad (forever, void, when)
 import Control.Monad.Reader (ask)
 import Data.Int (Int16)
 import Data.Maybe (catMaybes)
+import Data.Ratio
 import Data.Traversable (for)
 
 -- | Set up steering on the given device and port.
@@ -204,6 +206,24 @@ onTilt get char delta f = do
         liftIO . atomically $ writeTVar box (Just cur)
         f cur
   onValueChange char hubTilt Mode0 delta go
+
+newtype Millivolts = Millivolts Int16
+  deriving (Eq, Ord, Show)
+
+-- | Monitor the battery level.  The delta is the change in the
+-- raw value, whose range is 0..3893 representing 0..9600mV.
+onBatteryLevel
+  :: RemoteCharacteristic
+  -> Delta
+  -> (Millivolts -> BluetoothM ())
+  -> BluetoothM HandlerId
+onBatteryLevel char delta go = onValueChange char hubBattery Mode0 delta (go . f)
+  where
+  -- max raw or scaled value is 9600; this going into 2^16 6.82 times,
+  -- so for better resolution we can multiply the input value by 4
+  -- before scaling.
+  f :: Int16 -> Millivolts
+  f raw = Millivolts $ floor (fromIntegral raw % 3893 * 9600 :: Rational)
 
 -- | Watch the given port for value change on the given Mode.
 -- Returns the 'HandlerId' so the caller can deregister the handler
